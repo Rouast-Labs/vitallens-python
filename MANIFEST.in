@@ -1,0 +1,3 @@
+include README.md
+recursive-include vitallens/models *
+recursive-include tests *
