@@ -1,1 +1,1 @@
-from .api import VitalLens
+from .api import VitalLens, Method

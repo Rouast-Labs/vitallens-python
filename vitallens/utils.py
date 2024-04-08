@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import importlib.resources
 import logging
 import numpy as np
 from propy.ffmpeg.probe import probe_video
@@ -25,83 +26,136 @@ from propy.ffmpeg.readwrite import read_video_from_path
 from propy.numpy.image import crop_slice_resize
 from typing import Union, Tuple
 import os
+import yaml
 
 MIN_N_FRAMES = 16
 
-def probe_inputs(
-    inputs: Union[np.ndarray, str],
+def load_config(filename: str) -> dict:
+  """Load a yaml config file.
+
+  Args:
+    filename: The filename of the yaml config file
+  Returns:
+    loaded: The contents of the yaml config file
+  """
+  with importlib.resources.open_binary('vitallens.configs', filename) as f:
+    loaded = yaml.load(f, Loader=yaml.Loader)
+  return loaded
+
+def probe_video_inputs(
+    video: Union[np.ndarray, str],
     fps: float = None
   ) -> Tuple[tuple, float]:
-  """TODO"""
-  # Check if input is array or file name
-  if isinstance(inputs, str):
-    if os.path.isfile(inputs):
+  """Check the video inputs and probe to extract metadata.
+
+  Args:
+    video: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+      with a sequence of frames in unscaled uint8 RGB format, or a path to a
+      video file.
+    fps: Sampling frequency of the input video. Required if type(video)==np.ndarray.
+  Returns:
+    video_shape: The shape of the input video as (n_frames, h, w, 3)
+    fps: Sampling frequency of the input video.
+  """
+  # Check that fps is correct type
+  if not (fps is None or isinstance(fps, (int, float))):
+    raise ValueError("fps should be a number, but got {}".format(type(fps)))
+  # Check if video is array or file name
+  if isinstance(video, str):
+    if os.path.isfile(video):
       try:
-        fps, n_frames, width, height, *_ = probe_video(inputs)
-        return (n_frames, height, width, 3), fps
+        fps_, n, w_, h_, _, _, r = probe_video(video)
+        if fps is None: fps = fps_
+        if abs(r) == 90: h = w_; w = h_
+        else: h = h_; w = w_
+        return (n, h, w, 3), fps
       except Exception as e:
-        raise ValueError("Problem probing video at {}: {}".format(inputs, e))
+        raise ValueError("Problem probing video at {}: {}".format(video, e))
     else:
-      raise ValueError("No file found at {}".format(inputs))
-  elif isinstance(inputs, np.ndarray):
+      raise ValueError("No file found at {}".format(video))
+  elif isinstance(video, np.ndarray):
     if fps is None:
       raise ValueError("fps must be specified for ndarray input")
-    if inputs.dtype != np.uint8:
-      raise ValueError("inputs.dtype should be uint8, but found {}".format(inputs.dtype))
-    if len(inputs.shape) != 4 or inputs.shape[0] < MIN_N_FRAMES or inputs.shape[3] != 3:
-      raise ValueError("inputs should have shape (n_frames [>= {}], h, w, 3), but found {}".format(MIN_N_FRAMES, inputs.shape))
-    return inputs.shape, fps
+    if video.dtype != np.uint8:
+      raise ValueError("video.dtype should be uint8, but got {}".format(video.dtype))
+    # TODO: Improve MIN_N_FRAMES
+    if len(video.shape) != 4 or video.shape[0] < MIN_N_FRAMES or video.shape[3] != 3:
+      raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(MIN_N_FRAMES, video.shape))
+    return video.shape, fps
   else:
-    raise ValueError("Invalid inputs {}, type {}".format(inputs, type(input)))
+    raise ValueError("Invalid video {}, type {}".format(video, type(input)))
 
-def parse_inputs(
-    inputs: Union[np.ndarray, str],
+def parse_video_inputs(
+    video: Union[np.ndarray, str],
     fps: float = None,
     roi: tuple = None,
     target_size: tuple = None,
-  ) -> Tuple[np.ndarray, float]:
-  """Parse user inputs.
+    target_fps: float = None,
+  ) -> Tuple[np.ndarray, float, tuple, int]:
+  """Parse video inputs into required shape.
 
   Args:
-    inputs: The inputs. Either a filepath to video file or ndarray
-    fps: Frames per second of inputs. Can be `None` if video file provided.
-    roi: The region of interest as [x0, y0, x1, y1]. Use None to keep all.
+    video: The video input. Either a filepath to video file or ndarray
+    fps: Framerate of video input. Can be `None` if video file provided.
+    roi: The region of interest as (x0, y0, x1, y1). Use None to keep all.
     target_size: Optional target size as tuple (h, w)
+    target_fps: Optional target framerate
   Returns:
-    inputs: Inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
-      if target_size provided, w = target_size[0] and h = target_size[1]
-    fps: Frames per second of inputs
+    parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
+      if target_size provided, h = target_size[0] and w = target_size[1].
+    fps_in: Frame rate of original inputs
+    shape_in: Shape of original inputs in form (n, h, w, c)
+    ds_factor: Temporal downsampling factor applied
   """
   # Check if input is array or file name
-  if isinstance(inputs, str):
-    if os.path.isfile(inputs):
+  if isinstance(video, str):
+    if os.path.isfile(video):
       try:
-        if fps is None: fps, *_ = probe_video(inputs)
+        fps_, n, w_, h_, _, _, r = probe_video(video)
+        if fps is None: fps = fps_
         if roi is not None: roi = (roi[0], roi[1], roi[2]-roi[0], roi[3]-roi[1])
         if target_size is not None: target_size = (target_size[1], target_size[0])
-        inputs, _ = read_video_from_path(
-          path=inputs, crop=roi, scale=target_size, pix_fmt='rgb24')
-        return inputs, fps
+        if abs(r) == 90: h = w_; w = h_
+        else: h = h_; w = w_
+        parsed, ds_factor = read_video_from_path(
+          path=video, target_fps=target_fps, crop=roi, scale=target_size,
+          pix_fmt='rgb24', dim_deltas=(1,1,1))
+        return parsed, fps, (n, h, w, 3), ds_factor
       except Exception as e:
-        raise ValueError("Problem reading video from {}: {}".format(inputs, e))
+        raise ValueError("Problem reading video from {}: {}".format(video, e))
     else:
-      raise ValueError("No file found at {}".format(inputs))
-  elif isinstance(inputs, np.ndarray):
-    if fps is None:
-      raise ValueError("fps must be specified for ndarray input")
-    if inputs.dtype != np.uint8:
-      raise ValueError("inputs.dtype should be uint8, but found {}".format(inputs.dtype))
-    if len(inputs.shape) != 4 or inputs.shape[0] < MIN_N_FRAMES or inputs.shape[3] != 3:
-      raise ValueError("inputs should have shape (n_frames [>= {}], h, w, 3), but found {}".format(MIN_N_FRAMES, inputs.shape))
-    # Crop / scale if necessary
+      raise ValueError("No file found at {}".format(video))
+  elif isinstance(video, np.ndarray):
+    # Downsample / crop / scale if necessary
+    ds_factor = 1
+    if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+    elif target_fps is not None: ds_factor = int(fps // target_fps)
     if roi is not None or target_size is not None:
-      if target_size is None: target_size = (inputs.shape[1], inputs.shape[2])
-      inputs = crop_slice_resize(
-        inputs=inputs, target_size=target_size, roi=roi, preserve_aspect_ratio=False,
-        library='PIL')
-    return inputs, fps
+      if target_size is None: target_size = (video.shape[1], video.shape[2])
+      target_idxs = None if ds_factor == 1 else list(range(video.shape[0][0::ds_factor]))
+      # TODO: Specify sampling algorithm?
+      parsed = crop_slice_resize(
+        inputs=video, target_size=target_size, roi=roi, target_idxs=target_idxs,
+        preserve_aspect_ratio=False, library='PIL')
+    return parsed, fps, video.shape, ds_factor
   else:
-    raise ValueError("Invalid inputs {}, type {}".format(inputs, type(input)))
+    raise ValueError("Invalid video {}, type {}".format(video, type(video)))
+
+def merge_faces(faces: np.ndarray) -> tuple:
+  """Compute the union of all faces.
+  
+  Args:
+    faces: The face detections. Shape (n, 4)
+  Returns:
+    union: Tuple (x0, y0, x1, y1)
+  """
+  # Get the minimum x0, y0 and maximum x1, y1 values across all frames
+  x0 = np.min(faces[:, 0])
+  y0 = np.min(faces[:, 1])
+  x1 = np.max(faces[:, 2])
+  y1 = np.max(faces[:, 3])
+  # Return as tuple
+  return (x0, y0, x1, y1)
 
 def check_faces(
     faces: Union[list, np.ndarray],

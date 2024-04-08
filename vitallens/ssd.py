@@ -26,7 +26,7 @@ import os
 from propy.numpy.signal import interpolate_vals
 from typing import Tuple
 
-from .utils import parse_inputs
+from vitallens.utils import parse_video_inputs
 
 INPUT_SIZE = (240, 320)
 
@@ -223,13 +223,8 @@ class FaceDetector:
       info: Tuple (idx, scanned, scan_found_face, interp_valid, confidence) (n_frames, n_faces, 5)
     """
     # Parse the inputs
-    inputs, fps = parse_inputs(inputs=inputs, fps=fps, target_size=INPUT_SIZE)
-    inputs_shape = inputs.shape
-    n_frames = inputs_shape[0]
-    # Downsample temporally
-    scan_every = max(int(fps / self.fs), 1)
-    scan_idxs = np.arange(n_frames)[0::scan_every]
-    inputs = inputs[scan_idxs]
+    inputs, fps, inputs_shape, scan_every = parse_video_inputs(
+      video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs)
     # Forward pass
     onnx_inputs = {"args_0": (inputs.astype(np.float32) - 127.0) / 128.0}
     onnx_outputs = self.model.run(None, onnx_inputs)[0]
@@ -250,10 +245,9 @@ class FaceDetector:
       logging.warn("No faces found")
       return [], []
     # Assort info: idx, scanned, scan_found_face, interp_valid, confidence
-    n_frames_scan = len(scan_idxs)
-    idxs = np.repeat(np.arange(n_frames_scan, dtype=np.int32)[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
-    scanned = np.ones((n_frames_scan, max_valid, 1), dtype=np.int32)
-    scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([n_frames_scan, max_valid, 1], dtype=np.int32), scanned)
+    idxs = np.repeat(np.arange(inputs.shape[0], dtype=np.int32)[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
+    scanned = np.ones((inputs.shape[0], max_valid, 1), dtype=np.int32)
+    scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([inputs.shape[0], max_valid, 1], dtype=np.int32), scanned)
     info = np.r_['2', idxs, scanned, scan_found_face, scan_found_face, classes[...,1:2]]
     # Enforce temporal consistency
     boxes, info = enforce_temporal_consistency(boxes=boxes, info=info, inputs_shape=inputs_shape)

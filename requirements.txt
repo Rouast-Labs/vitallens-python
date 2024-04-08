@@ -1,0 +1,5 @@
+importlib_resources
+numpy
+onnxruntime
+pyyaml
+# propy[ffmpeg]==0.1.17

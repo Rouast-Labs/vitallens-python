@@ -1,0 +1,21 @@
+###############################################################################
+#                         Settings for pos method                             #
+###############################################################################
+
+##### Model settings #####
+# The model name
+model: 'pos'
+# Size of the input
+input_size: null
+# List estimated signals
+signals: ['pulse']
+
+##### rPPG settings #####
+# The ROI used as model input
+roi_method: 'face'
+# The target sampling frequency [Hz]
+fps_target: 30
+# Overlap of windows during estimation
+est_window_overlap: 47
+# Size of window during estimation
+est_window_length: 48
