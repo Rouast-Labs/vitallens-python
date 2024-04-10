@@ -1,5 +1,0 @@
-importlib_resources
-numpy
-onnxruntime
-prpy[ffmpeg,numpy_min]==0.2.2
-pyyaml

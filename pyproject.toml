@@ -1,6 +1,40 @@
 [build-system]
-requires = [
-  "setuptools>=42",
-  "wheel"
-]
+requires = ["setuptools>=61", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "vitallens"
+authors = [
+    {name = "Philipp Rouast", email = "philipp@rouast.com"},
+]
+description = "Vital sign estimation from facial video"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["python", "rppg", "vital signs monitoring", "heart rate", "pulse", "respiration"]
+license = {text = "MIT License"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 4 - Beta",
+]
+dependencies = [
+    "importlib_resources",
+    "numpy",
+    "onnxruntime",
+    "prpy[ffmpeg,numpy_min]>=0.2.2",
+    "pyyaml",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest", "flake8"]
+
+[project.urls]
+Repository = "https://github.com/Rouast-Labs/vitallens-python.git"
+Issues = "https://github.com/Rouast-Labs/vitallens-python/issues"
+
+[tool.setuptools]
+packages = ["vitallens"]
+
+[tool.setuptools_scm]
