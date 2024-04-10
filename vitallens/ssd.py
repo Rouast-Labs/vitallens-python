@@ -23,7 +23,7 @@ import itertools
 import logging
 import numpy as np
 import os
-from propy.numpy.signal import interpolate_vals
+from prpy.numpy.signal import interpolate_vals
 from typing import Tuple
 
 from vitallens.utils import parse_video_inputs

@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import numpy as np
-from propy.numpy.signal import moving_average_size_for_response
+from prpy.numpy.signal import moving_average_size_for_response
 
 from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MAX, CALC_RR_MAX
 

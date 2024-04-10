@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import numpy as np
-from propy.numpy.signal import detrend, moving_average, standardize
+from prpy.numpy.signal import detrend, moving_average, standardize
 
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response

@@ -21,9 +21,9 @@
 import importlib.resources
 import logging
 import numpy as np
-from propy.ffmpeg.probe import probe_video
-from propy.ffmpeg.readwrite import read_video_from_path
-from propy.numpy.image import crop_slice_resize
+from prpy.ffmpeg.probe import probe_video
+from prpy.ffmpeg.readwrite import read_video_from_path
+from prpy.numpy.image import crop_slice_resize
 from typing import Union, Tuple
 import os
 import yaml

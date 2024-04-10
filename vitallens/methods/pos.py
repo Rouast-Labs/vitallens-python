@@ -19,8 +19,8 @@
 # SOFTWARE.
 
 import numpy as np
-from propy.numpy.signal import detrend, moving_average, standardize, div0
-from propy.numpy.stride_tricks import window_view, reduce_window_view
+from prpy.numpy.signal import detrend, moving_average, standardize, div0
+from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response

@@ -20,8 +20,8 @@
 
 import abc
 import numpy as np
-from propy.numpy.face import get_roi_from_det
-from propy.numpy.signal import interpolate_cubic_spline
+from prpy.numpy.face import get_roi_from_det
+from prpy.numpy.signal import interpolate_cubic_spline
 from typing import Union, Tuple
 
 from vitallens.methods.rppg_method import RPPGMethod
