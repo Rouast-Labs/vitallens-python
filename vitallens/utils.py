@@ -113,7 +113,7 @@ def parse_video_inputs(
       try:
         fps_, n, w_, h_, _, _, r = probe_video(video)
         if fps is None: fps = fps_
-        if roi is not None: roi = (roi[0], roi[1], roi[2]-roi[0], roi[3]-roi[1])
+        if roi is not None: roi = (int(roi[0]), int(roi[1]), int(roi[2]-roi[0]), int(roi[3]-roi[1]))
         if target_size is not None: target_size = (target_size[1], target_size[0])
         if abs(r) == 90: h = w_; w = h_
         else: h = h_; w = w_
