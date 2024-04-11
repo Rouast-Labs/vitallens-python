@@ -19,29 +19,29 @@
 # SOFTWARE.
 
 import numpy as np
-from prpy.numpy.signal import detrend, moving_average, standardize, div0
+from prpy.constants import SECONDS_PER_MINUTE
+from prpy.numpy.signal import detrend, standardize, butter_bandpass, div0
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response
-from vitallens.signal import moving_average_size_for_hr_response
 
-class POSRPPGMethod(SimpleRPPGMethod):
+class CHROMRPPGMethod(SimpleRPPGMethod):
   def __init__(
       self,
       config: dict
     ):
-    super(POSRPPGMethod, self).__init__(config=config)
+    super(CHROMRPPGMethod, self).__init__(config=config)
   def algorithm(
       self,
       rgb: np.ndarray,
       fps: float
-    ) -> np.ndarray:
-    """Use POS algorithm to estimate pulse from rgb signal.
+    ):
+    """Use CHROM algorithm to estimate pulse from rgb signal.
     
     Args:
       rgb: The rgb signal. Shape (n_frames, 3)
-      fps: The rate at which signal was sampled. Scalar
+      fps: The rate at which video was sampled. Scalar
     Returns:
       sig: The estimated pulse signal. Shape (n_frames,)
     """
@@ -52,41 +52,38 @@ class POSRPPGMethod(SimpleRPPGMethod):
     rgb_view, _, pad_end = window_view(
       x=rgb, min_window_size=window_length, max_window_size=window_length,
       overlap=overlap, pad_mode='constant', const_val=0)
-    # Temporal normalization
-    c_n = div0(rgb_view, np.nanmean(rgb_view, axis=1, keepdims=True), 0)
-    # Projection
-    s = np.matmul(c_n, np.asarray([[0, 1, -1], [-2, 1, 1]]).T)
-    # Tuning
-    sigma_1 = np.std(s[:,:,0], axis=-1, keepdims=True)
-    sigma_2 = np.std(s[:,:,1], axis=-1, keepdims=True)
-    h = s[:,:,0] + div0(sigma_1, sigma_2, fill=0) * s[:,:,1]
+    # RGB norm
+    rgb_n = div0(rgb_view, np.nanmean(rgb_view, axis=1, keepdims=True), 0) - 1
+    # CHROM
+    Xs = 3 * rgb_n[:,:,0] - 2 * rgb_n[:,:,1]
+    Ys = (1.5 * rgb_n[:,:,0]) + rgb_n[:,:,1] - (1.5 * rgb_n[:,:,2])
+    Xf = butter_bandpass(Xs, lowcut=40/SECONDS_PER_MINUTE, highcut=240/SECONDS_PER_MINUTE, fs=fps, axis=-1)
+    Yf = butter_bandpass(Ys, lowcut=40/SECONDS_PER_MINUTE, highcut=240/SECONDS_PER_MINUTE, fs=fps, axis=-1)
+    alpha = div0(np.std(Xf, axis=-1), np.std(Yf, axis=-1), fill=0)
+    chrom = Xf - alpha[:,np.newaxis] * Yf
     # Reduce window view
-    pos = reduce_window_view(h, overlap=overlap, pad_end=pad_end, hanning=False)
+    chrom = reduce_window_view(chrom, overlap=overlap, pad_end=pad_end, hanning=True)
     # Invert
-    pos = -1 * pos
-    # Return
-    return pos
+    chrom = -1 * chrom
+    # Return result
+    return chrom
   def pulse_filter(
-      self, 
+      self,
       sig: np.ndarray,
       fps: float
-    ) -> np.ndarray:
+    ):
     """Apply filters to the estimated pulse signal.
 
     Args:
       sig: The estimated pulse signal. Shape (n_frames,)
-      fps: The rate at which signal was sampled. Scalar
+      fps: The rate at which video was sampled. Scalar
     Returns:
-      out: The filtered pulse signal. Shape (n_frames,)
+      x: The filtered pulse signal. Shape (n_frames,)
     """
     # Detrend (high-pass equivalent)
     Lambda = detrend_lambda_for_hr_response(fps)
     sig = detrend(sig, Lambda)
-    # Moving average (low-pass equivalent)
-    size = moving_average_size_for_hr_response(fps)
-    sig = moving_average(sig, size)
     # Standardize
     sig = standardize(sig)
     # Return
     return sig
-  

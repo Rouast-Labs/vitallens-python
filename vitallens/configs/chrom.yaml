@@ -18,10 +18,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-SECONDS_PER_MINUTE = 60.0
+###############################################################################
+#                        Settings for chrom method                            #
+###############################################################################
 
-### Minima and maxima of derived vitals
-CALC_HR_MIN = 40
-CALC_HR_MAX = 240
-CALC_RR_MIN = 1
-CALC_RR_MAX = 60
+##### Model settings #####
+# The model name
+model: 'chrom'
+# Size of the input
+input_size: null
+# List estimated signals
+signals: ['pulse']
+
+##### rPPG settings #####
+# The ROI used as model input
+roi_method: 'face'
+# The target sampling frequency [Hz]
+fps_target: 30
+# Overlap of windows during estimation
+est_window_overlap: 47
+# Size of window during estimation
+est_window_length: 48
