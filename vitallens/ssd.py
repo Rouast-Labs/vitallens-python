@@ -224,7 +224,8 @@ class FaceDetector:
     """
     # Parse the inputs
     inputs, fps, inputs_shape, scan_every = parse_video_inputs(
-      video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs)
+      video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs,
+      library='prpy', scale_algorithm='bilinear')
     # Forward pass
     onnx_inputs = {"args_0": (inputs.astype(np.float32) - 127.0) / 128.0}
     onnx_outputs = self.model.run(None, onnx_inputs)[0]

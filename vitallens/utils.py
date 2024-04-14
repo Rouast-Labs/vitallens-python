@@ -89,8 +89,10 @@ def parse_video_inputs(
     video: Union[np.ndarray, str],
     fps: float = None,
     roi: tuple = None,
-    target_size: tuple = None,
+    target_size: Union[int, tuple] = None,
     target_fps: float = None,
+    library: str = 'prpy',
+    scale_algorithm: str = 'bilinear'
   ) -> Tuple[np.ndarray, float, tuple, int]:
   """Parse video inputs into required shape.
 
@@ -98,7 +100,7 @@ def parse_video_inputs(
     video: The video input. Either a filepath to video file or ndarray
     fps: Framerate of video input. Can be `None` if video file provided.
     roi: The region of interest as (x0, y0, x1, y1). Use None to keep all.
-    target_size: Optional target size as tuple (h, w)
+    target_size: Optional target size as int or tuple (h, w)
     target_fps: Optional target framerate
   Returns:
     parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
@@ -114,12 +116,12 @@ def parse_video_inputs(
         fps_, n, w_, h_, _, _, r = probe_video(video)
         if fps is None: fps = fps_
         if roi is not None: roi = (int(roi[0]), int(roi[1]), int(roi[2]-roi[0]), int(roi[3]-roi[1]))
-        if target_size is not None: target_size = (target_size[1], target_size[0])
+        if isinstance(target_size, tuple): target_size = (target_size[1], target_size[0])
         if abs(r) == 90: h = w_; w = h_
         else: h = h_; w = w_
         parsed, ds_factor = read_video_from_path(
           path=video, target_fps=target_fps, crop=roi, scale=target_size,
-          pix_fmt='rgb24', dim_deltas=(1,1,1))
+          pix_fmt='rgb24', dim_deltas=(1,1,1), scale_algorithm=scale_algorithm)
         return parsed, fps, (n, h, w, 3), ds_factor
       except Exception as e:
         raise ValueError("Problem reading video from {}: {}".format(video, e))
@@ -129,14 +131,13 @@ def parse_video_inputs(
     # Downsample / crop / scale if necessary
     ds_factor = 1
     if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
-    elif target_fps is not None: ds_factor = int(fps // target_fps)
+    elif target_fps is not None: ds_factor = max(round(fps / target_fps), 1)
     if roi is not None or target_size is not None:
-      if target_size is None: target_size = (video.shape[1], video.shape[2])
-      target_idxs = None if ds_factor == 1 else list(range(video.shape[0][0::ds_factor]))
-      # TODO: Specify sampling algorithm?
+      if target_size is None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))
+      target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
       parsed = crop_slice_resize(
         inputs=video, target_size=target_size, roi=roi, target_idxs=target_idxs,
-        preserve_aspect_ratio=False, library='PIL')
+        preserve_aspect_ratio=False, library=library, scale_algorithm=scale_algorithm)
     return parsed, fps, video.shape, ds_factor
   else:
     raise ValueError("Invalid video {}, type {}".format(video, type(video)))

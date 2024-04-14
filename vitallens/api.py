@@ -26,6 +26,7 @@ from typing import Union
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
+from vitallens.methods.vitallens import VitalLensRPPGMethod
 from vitallens.ssd import FaceDetector
 from vitallens.utils import load_config, probe_video_inputs, check_faces
 
@@ -69,7 +70,7 @@ class VitalLens:
     elif self.config['model'] == 'pos':
       self.rppg = POSRPPGMethod(self.config)
     elif self.config['model'] == 'vitallens':
-      self.rppg = GRPPGMethod(self.config)
+      self.rppg = VitalLensRPPGMethod(self.config)
     else:
       raise ValueError("Method {} not implemented!".format(self.config['model']))
     self.detect_faces = detect_faces

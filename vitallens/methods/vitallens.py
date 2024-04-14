@@ -18,36 +18,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import abc
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
-from prpy.numpy.image import reduce_roi
-from prpy.numpy.signal import interpolate_cubic_spline
 from typing import Union, Tuple
 
 from vitallens.methods.rppg_method import RPPGMethod
-from vitallens.utils import parse_video_inputs, merge_faces
+from vitallens.utils import probe_video_inputs, parse_video_inputs
 
-class SimpleRPPGMethod(RPPGMethod):
+class VitalLensRPPGMethod(RPPGMethod):
   def __init__(
       self,
       config: dict
     ):
-    super(SimpleRPPGMethod, self).__init__(config=config)
+    super(VitalLensRPPGMethod, self).__init__(config=config)
+    self.input_size = config['input_size']
     self.roi_method = config['roi_method']
-  @abc.abstractmethod
-  def algorithm(
-      self,
-      rgb: np.ndarray,
-      fps: float
-    ):
-    pass
-  @abc.abstractmethod
-  def pulse_filter(self, 
-      sig: np.ndarray,
-      fps: float
-    ) -> np.ndarray:
-    pass
   def __call__(
       self,
       frames: Union[np.ndarray, str],
@@ -55,7 +40,7 @@ class SimpleRPPGMethod(RPPGMethod):
       fps: float,
       override_fps_target: float = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Estimate pulse signal from video frames using the subclass algorithm.
+    """Estimate vitals from video frames using the VitalLens API.
 
     Args:
       frames: The video frames. Shape (n_frames, h, w, c)
@@ -67,29 +52,19 @@ class SimpleRPPGMethod(RPPGMethod):
       conf: Dummy estimation confidence (set to always 1). Shape (1, n_frames)
       live: Dummy liveness estimation (set to always 1). Shape (1, n_frames)
     """
-    # Compute temporal union of ROIs
-    u_roi = merge_faces(faces)
-    faces = faces - [u_roi[0], u_roi[1], u_roi[0], u_roi[1]]
+    inputs_shape, fps = probe_video_inputs(video=frames, fps=fps)
+    # TODO: Choose face box that face stays most centered in
+    # TODO: Warn if face moves too much (more than 1/3 out of chosen face box)
+    roi = get_roi_from_det(
+      faces[0], roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
     # Parse the inputs
     frames_ds, fps, inputs_shape, ds_factor = parse_video_inputs(
-      video=frames, fps=fps, target_size=None, roi=u_roi,
-      target_fps=override_fps_target if override_fps_target is not None else self.fps_target)   
-    assert inputs_shape[0] == faces.shape[0], "Need same number of frames as face detections"
-    faces_ds = faces[0::ds_factor]
-    assert frames_ds.shape[0] == faces_ds.shape[0], "Need same number of frames as face detections"
+      video=frames, fps=fps, target_size=self.input_size, roi=roi,
+      target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
+      library='prpy', scale_algorithm='bilinear')
     fps_ds = fps*1.0/ds_factor
-    # Extract rgb signal (n_frames_ds, 3)
-    roi_ds = np.asarray([get_roi_from_det(f, roi_method=self.roi_method) for f in faces_ds], dtype=np.int64) # roi for each frame (n, 4)
-    rgb_ds = reduce_roi(video=frames_ds, roi=roi_ds)
-    # Perform rppg algorithm step (n_frames_ds,)
-    sig_ds = self.algorithm(rgb_ds, fps_ds)
-    # Interpolate to original sampling rate (n_frames,)
-    sig = interpolate_cubic_spline(
-      x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
-    # Filter (n_frames,)
-    sig = self.pulse_filter(sig, fps)
-    # Add conf and live (n_frames,)
-    conf = np.ones_like(sig)
-    live = np.ones_like(sig)
-    # Return (1, n_frames)
-    return sig[np.newaxis], conf[np.newaxis], live[np.newaxis]
+    n_ds = frames_ds.shape[0]
+    
+    # TODO: Implement communication with server
+    
+    return np.zeros(n_ds), np.zeros(n_ds), np.zeros(n_ds)
