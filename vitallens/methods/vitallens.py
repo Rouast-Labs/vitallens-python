@@ -18,21 +18,31 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import base64
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
+from prpy.numpy.signal import detrend, moving_average, standardize
+from prpy.numpy.signal import interpolate_cubic_spline
+import json
+import logging
+import requests
 from typing import Union, Tuple
 
 from vitallens.methods.rppg_method import RPPGMethod
+from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
+from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from vitallens.utils import probe_video_inputs, parse_video_inputs
 
 class VitalLensRPPGMethod(RPPGMethod):
   def __init__(
       self,
-      config: dict
+      config: dict,
+      api_key: str
     ):
     super(VitalLensRPPGMethod, self).__init__(config=config)
     self.input_size = config['input_size']
     self.roi_method = config['roi_method']
+    self.api_key = api_key
   def __call__(
       self,
       frames: Union[np.ndarray, str],
@@ -62,9 +72,62 @@ class VitalLensRPPGMethod(RPPGMethod):
       video=frames, fps=fps, target_size=self.input_size, roi=roi,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
       library='prpy', scale_algorithm='bilinear')
-    fps_ds = fps*1.0/ds_factor
-    n_ds = frames_ds.shape[0]
-    
-    # TODO: Implement communication with server
-    
-    return np.zeros(n_ds), np.zeros(n_ds), np.zeros(n_ds)
+    # Communicate with API
+    headers = {"x-api-key": self.api_key}
+    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8')}
+    if frames_ds.shape[0] > 900:
+      # TODO: Deal with this
+      logging.warn("Too long!")
+    # Ask API to process video
+    response = requests.post("https://uimunafoxe.execute-api.ap-southeast-2.amazonaws.com/beta/process", headers=headers, json=payload)
+    # Check if response was successful
+    if response.status_code != 200:
+      # TODO: Deal with error
+      logging.error("Error {} ({})".format(response.status_code, response.text))
+      return [], [], []
+    # Parse response
+    response_body = json.loads(response.text)
+    sig_ds = np.asarray(response_body["signal"])
+    conf_ds = np.asarray(response_body["conf"])
+    live_ds = np.asarray(response_body["live"])
+    # Interpolate to original sampling rate (n_frames,)
+    sig = interpolate_cubic_spline(
+      x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
+    conf = interpolate_cubic_spline(
+      x=np.arange(inputs_shape[0])[0::ds_factor], y=conf_ds, xs=np.arange(inputs_shape[0]), axis=1)
+    live = interpolate_cubic_spline(
+      x=np.arange(inputs_shape[0])[0::ds_factor], y=live_ds, xs=np.arange(inputs_shape[0]), axis=0)
+    # Filter (n_frames,)
+    sig = [self.postprocess(p, fps, type=name) for p, name in zip(sig, ['pulse', 'resp'])]
+    return sig, conf, live
+  def postprocess(self, sig, fps, type='pulse', filter=True):
+    """Apply filters to the estimated signal. 
+    Args:
+      sig: The estimated signal. Shape (n_frames,)
+      fps: The rate at which video was sampled. Scalar
+      type: The signal type - either 'pulse' or 'resp'.
+      filter: Whether to apply filters
+    Returns:
+      x: The filtered signal. Shape (n_frames,)
+    """
+    n_frames = sig.shape[-1]
+    if filter:
+      # Get filter parameters
+      if type == 'pulse':
+        size = moving_average_size_for_hr_response(fps)
+        Lambda = detrend_lambda_for_hr_response(fps)
+      elif type == 'resp':
+        size = moving_average_size_for_rr_response(fps)
+        Lambda = detrend_lambda_for_rr_response(fps)
+      else:
+        raise ValueError("Type {} not implemented!".format(type))
+      # Detrend
+      sig = detrend(sig, Lambda)
+      # Moving average
+      sig = moving_average(sig, size)
+      # Standardize
+      sig = standardize(sig)
+    # Return
+    assert sig.shape == (n_frames,)
+    return sig
+  

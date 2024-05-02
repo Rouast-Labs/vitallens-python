@@ -20,7 +20,9 @@ else:
   video, _ = read_video_from_path(path=video_path, pix_fmt='rgb24')
   print("video: {}".format(video.shape))
 
-vl = vitallens.VitalLens(method=vitallens.Method.POS)
+vl = vitallens.VitalLens(
+  method=vitallens.Method.POS,
+  api_key="INSERT_API_KEY_HERE")
 start = timeit.default_timer()
 # TODO: Crashes when override_fps_target too low
 result = vl(video=video, fps=fps, override_fps_target=30.0)
@@ -30,4 +32,5 @@ print("Inference time: {:.2f} ms".format((stop-start)*1000))
 
 import matplotlib.pyplot as plt
 plt.plot(result[0]['pulse']['sig'])
+if 'resp' in result[0]: plt.plot(result[0]['resp']['sig'])
 plt.show()

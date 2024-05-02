@@ -42,6 +42,7 @@ class VitalLens:
   def __init__(
       self, 
       method: Method = Method.VITALLENS,
+      api_key: str = None,
       detect_faces: bool = True,
       fdet_max_faces: int = 2,
       fdet_fs: float = 1.0,
@@ -52,6 +53,7 @@ class VitalLens:
 
     Args:
       method: The rPPG method to be used for inference.
+      api_key: Usage key for the VitalLens API (required for Method.VITALLENS)
       detect_faces: `True` if faces need to be detected. If `False`, VitalLens
         will assume frames have been cropped to a stable ROI with a single face.
       fdet_max_faces: The maximum number of faces to detect (if necessary).
@@ -60,7 +62,7 @@ class VitalLens:
       fdet_score_threshold: Face detection score threshold.
       fdet_iou_threshold: Face detection iou threshold.
     """
-    # TODO: Pass API key
+    self.api_key = api_key
     # Load the config and model
     self.config = load_config(method.name.lower() + ".yaml")
     if self.config['model'] == 'g':
@@ -70,7 +72,10 @@ class VitalLens:
     elif self.config['model'] == 'pos':
       self.rppg = POSRPPGMethod(self.config)
     elif self.config['model'] == 'vitallens':
-      self.rppg = VitalLensRPPGMethod(self.config)
+      if self.api_key is None:
+        # TODO: Improve documentation
+        logging.warn("API key is required to use Method.VITALLENS")
+      self.rppg = VitalLensRPPGMethod(self.config, self.api_key)
     else:
       raise ValueError("Method {} not implemented!".format(self.config['model']))
     self.detect_faces = detect_faces
@@ -104,9 +109,9 @@ class VitalLens:
     Returns:
       result: Analysis results as a list of faces in the following format:
         [<face_0> {'face': <np.ndarray with face coords for each frame>,
-                   'pulse': {'pred': <np.ndarray with predicted waveform val for each frame>,
-                             'conf': <np.ndarray with prediction confidence for each frame>,
-                             'live': <np.ndarray with liveness prediction for each frame>},
+                   'pulse': {'sig': <np.ndarray with estimated waveform val for each frame>,
+                             'conf': <np.ndarray with estimation confidence for each frame>,
+                             'live': <np.ndarray with liveness estimation for each frame>},
                    'resp': { same format as pulse ... }
                   },
          <face_1> { ... },
