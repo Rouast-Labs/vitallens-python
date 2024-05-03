@@ -143,5 +143,6 @@ class VitalLens:
       # Add to results
       for vals, conf, name in zip(sig, conf, self.config['signals']):
         face_result[name] = {'sig': vals, 'conf': conf, 'live': live}
+      # TODO: Compute summary vitals
       results.append(face_result)
     return results

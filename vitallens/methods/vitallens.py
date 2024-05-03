@@ -19,10 +19,12 @@
 # SOFTWARE.
 
 import base64
+import concurrent.futures
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.signal import detrend, moving_average, standardize
 from prpy.numpy.signal import interpolate_cubic_spline
+from prpy.numpy.stride_tricks import window_view, reduce_window_view
 import json
 import logging
 import requests
@@ -32,6 +34,9 @@ from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from vitallens.utils import probe_video_inputs, parse_video_inputs
+
+MAX_FRAMES = 900
+OVERLAP = 8
 
 class VitalLensRPPGMethod(RPPGMethod):
   def __init__(
@@ -58,9 +63,9 @@ class VitalLensRPPGMethod(RPPGMethod):
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
     Returns:
-      sig: Estimated pulse signal. Shape (1, n_frames)
-      conf: Dummy estimation confidence (set to always 1). Shape (1, n_frames)
-      live: Dummy liveness estimation (set to always 1). Shape (1, n_frames)
+      sig: Estimated pulse signal. Shape (n_sig, n_frames)
+      conf: Estimation confidence. Shape (n_sig, n_frames)
+      live: Liveness estimation. Shape (n_frames,)
     """
     inputs_shape, fps = probe_video_inputs(video=frames, fps=fps)
     # TODO: Choose face box that face stays most centered in
@@ -72,24 +77,21 @@ class VitalLensRPPGMethod(RPPGMethod):
       video=frames, fps=fps, target_size=self.input_size, roi=roi,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
       library='prpy', scale_algorithm='bilinear')
-    # Communicate with API
-    headers = {"x-api-key": self.api_key}
-    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8')}
-    if frames_ds.shape[0] > 900:
-      # TODO: Deal with this
-      logging.warn("Too long!")
-    # Ask API to process video
-    response = requests.post("https://uimunafoxe.execute-api.ap-southeast-2.amazonaws.com/beta/process", headers=headers, json=payload)
-    # Check if response was successful
-    if response.status_code != 200:
-      # TODO: Deal with error
-      logging.error("Error {} ({})".format(response.status_code, response.text))
-      return [], [], []
-    # Parse response
-    response_body = json.loads(response.text)
-    sig_ds = np.asarray(response_body["signal"])
-    conf_ds = np.asarray(response_body["conf"])
-    live_ds = np.asarray(response_body["live"])
+    # Check the video length
+    # API supports up to 900 frames per call. Longer videos are chopped up.
+    if frames_ds.shape[0] > MAX_FRAMES:
+      frames_ds_view, _, pad_end = window_view(
+        x=frames_ds, min_window_size=MAX_FRAMES, max_window_size=MAX_FRAMES,
+        overlap=OVERLAP, pad_mode='constant', const_val=0)
+      n = frames_ds_view.shape[0]
+      with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(lambda i: self.process_api(frames_ds_view[i]), range(n)))
+      sig_results, conf_results, live_results = zip(*results)
+      sig_ds = np.transpose(reduce_window_view(np.transpose(np.stack(sig_results), (0, 2, 1)), overlap=OVERLAP, pad_end=pad_end, hanning=False), (1, 0))
+      conf_ds = np.transpose(reduce_window_view(np.transpose(np.stack(conf_results), (0, 2, 1)), overlap=OVERLAP, pad_end=pad_end, hanning=False), (1, 0))
+      live_ds = reduce_window_view(np.stack(live_results), overlap=OVERLAP, pad_end=pad_end, hanning=False)
+    else:
+      sig_ds, conf_ds, live_ds = self.process_api(frames_ds)
     # Interpolate to original sampling rate (n_frames,)
     sig = interpolate_cubic_spline(
       x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
@@ -98,8 +100,37 @@ class VitalLensRPPGMethod(RPPGMethod):
     live = interpolate_cubic_spline(
       x=np.arange(inputs_shape[0])[0::ds_factor], y=live_ds, xs=np.arange(inputs_shape[0]), axis=0)
     # Filter (n_frames,)
-    sig = [self.postprocess(p, fps, type=name) for p, name in zip(sig, ['pulse', 'resp'])]
+    sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['pulse', 'resp'])])
     return sig, conf, live
+  def process_api(
+      self,
+      frames: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Process frames with the VitalLens API.
+
+    Args:
+      frames: The video frames. Shape (n_frames<=MAX_FRAMES, h==input_size, w==input_size, 3)
+    Returns:
+      sig: Estimated pulse signal. Shape (n_sig, n_frames)
+      conf: Estimation confidence. Shape (n_sig, n_frames)
+      live: Liveness estimation. Shape (n_frames,)
+    """
+    assert frames.shape[0] <= MAX_FRAMES
+    # Prepare API header and payload
+    headers = {"x-api-key": self.api_key}
+    payload = {"video": base64.b64encode(frames.tobytes()).decode('utf-8')}
+    # Ask API to process video
+    response = requests.post("https://uimunafoxe.execute-api.ap-southeast-2.amazonaws.com/beta/process", headers=headers, json=payload)
+    response_body = json.loads(response.text)
+    # Check if call was successful
+    if response.status_code != 200:
+      logging.error("Error {}: {}".format(response.status_code, response_body['message']))
+      return [], [], []
+    # Parse response
+    sig_ds = np.asarray(response_body["signal"])
+    conf_ds = np.asarray(response_body["conf"])
+    live_ds = np.asarray(response_body["live"])
+    return sig_ds, conf_ds, live_ds
   def postprocess(self, sig, fps, type='pulse', filter=True):
     """Apply filters to the estimated signal. 
     Args:
