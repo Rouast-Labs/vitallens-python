@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.signal import detrend, standardize, butter_bandpass, div0
@@ -47,8 +48,13 @@ class CHROMRPPGMethod(SimpleRPPGMethod):
     """
     # Create a windowed view into rgb
     window_length = self.est_window_length
-    if window_length % 2 == 1: window_length += 1
     overlap = self.est_window_overlap
+    # Check that enough frames are available
+    if window_length > rgb.shape[0]:
+      logging.warn("Too few frames available for CHROM method. Forcing shorter window.")
+      window_length = rgb.shape[0] - rgb.shape[0] % 2
+      overlap = window_length - 1
+    # Create window view into rgb
     rgb_view, _, pad_end = window_view(
       x=rgb, min_window_size=window_length, max_window_size=window_length,
       overlap=overlap, pad_mode='constant', const_val=0)
