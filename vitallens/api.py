@@ -21,8 +21,10 @@
 from enum import IntEnum
 import logging
 import numpy as np
+from prpy.numpy.signal import estimate_freq
 from typing import Union
 
+from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
@@ -109,10 +111,14 @@ class VitalLens:
     Returns:
       result: Analysis results as a list of faces in the following format:
         [<face_0> {'face': <np.ndarray with face coords for each frame>,
-                   'pulse': {'sig': <np.ndarray with estimated waveform val for each frame>,
-                             'conf': <np.ndarray with estimation confidence for each frame>,
-                             'live': <np.ndarray with liveness estimation for each frame>},
-                   'resp': { same format as pulse ... }
+                   'pulse': {'val': <np.ndarray with estimated waveform val for each frame>,
+                             'conf': <np.ndarray with estimation confidence for each frame> },
+                   'resp': { same format as pulse ... },
+                   'hr': {'val': <estimated heart rate>,
+                          'conf': <estimation confidence>},
+                   'rr': {'val': <estimated respiratory rate>,
+                          'conf': <estimation confidence>},
+                   'live': <np.ndarray with liveness estimation for each frame>}
                   },
          <face_1> { ... },
          ... ]
@@ -140,9 +146,27 @@ class VitalLens:
       sig, conf, live = self.rppg(
         frames=video, faces=face, fps=fps, override_fps_target=override_fps_target)
       face_result = {'face': face}
-      # Add to results
+      # Add raw signal estimations to results
       for vals, conf, name in zip(sig, conf, self.config['signals']):
-        face_result[name] = {'sig': vals, 'conf': conf, 'live': live}
-      # TODO: Compute summary vitals
+        face_result[name] = {'val': vals, 'conf': conf}
+      # Compute summary vital estimations from raw signal estimations
+      if 'pulse' in self.config['signals']:
+        face_result['hr'] = {
+          'val': estimate_freq(
+            face_result['pulse']['val'], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
+            f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
+            method='periodogram') * SECONDS_PER_MINUTE,
+          'conf': np.mean(face_result['pulse']['conf'])
+        }
+      if 'resp' in self.config['signals']:
+        face_result['rr'] = {
+          'val': estimate_freq(
+            face_result['resp']['val'], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
+            f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
+            method='periodogram') * SECONDS_PER_MINUTE,
+          'conf': np.mean(face_result['resp']['conf'])
+        }
+      # Add liveness estimation
+      face_result['live'] = live
       results.append(face_result)
     return results

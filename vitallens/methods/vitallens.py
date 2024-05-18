@@ -86,17 +86,19 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Check the number of frames to be processed
     ds_len = frames_ds.shape[0]
     if ds_len <= MAX_FRAMES:
-      # API supports up to MAX_FRAMES at once
+      # API supports up to MAX_FRAMES at once - process all frames
       sig_ds, conf_ds, live_ds = self.process_api(frames_ds)
     else:
-      # Longer videos are split up and processed in parallel
+      # Longer videos are split up with small overlaps
       ds_len = frames_ds.shape[0]
       n_splits = math.ceil((ds_len - MAX_FRAMES) / (MAX_FRAMES - OVERLAP)) + 1
       split_len = math.ceil((ds_len + (n_splits-1) * OVERLAP) / n_splits)
       start_idxs = [i for i in range(0, ds_len - n_splits * OVERLAP, split_len - OVERLAP)]
       end_idxs = [min(i + split_len, ds_len) for i in start_idxs]
+      # Process the splits in parallel
       with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(lambda i: self.process_api(frames_ds[start_idxs[i]:end_idxs[i]]), range(n_splits)))
+      # Aggregate the results
       sig_results, conf_results, live_results = zip(*results)
       sig_ds = np.concatenate([sig_results[0]] + [[x[OVERLAP:] for x in e] for e in sig_results[1:]], axis=-1)
       conf_ds = np.concatenate([conf_results[0]] + [[x[OVERLAP:] for x in e] for e in conf_results[1:]], axis=-1)
