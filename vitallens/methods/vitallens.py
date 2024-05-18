@@ -20,6 +20,7 @@
 
 import base64
 import concurrent.futures
+import math
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.signal import detrend, moving_average, standardize
@@ -36,7 +37,7 @@ from vitallens.signal import moving_average_size_for_hr_response, moving_average
 from vitallens.utils import probe_video_inputs, parse_video_inputs
 
 MAX_FRAMES = 900
-OVERLAP = 8
+OVERLAP = 30
 
 class VitalLensRPPGMethod(RPPGMethod):
   def __init__(
@@ -58,7 +59,8 @@ class VitalLensRPPGMethod(RPPGMethod):
     """Estimate vitals from video frames using the VitalLens API.
 
     Args:
-      frames: The video frames. Shape (n_frames, h, w, c)
+      frames: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+        in unscaled uint8 RGB format, or a path to a video file.
       faces: The face detection boxes. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
@@ -77,21 +79,24 @@ class VitalLensRPPGMethod(RPPGMethod):
       video=frames, fps=fps, target_size=self.input_size, roi=roi,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
       library='prpy', scale_algorithm='bilinear')
-    # Check the video length
-    # API supports up to 900 frames per call. Longer videos are chopped up.
-    if frames_ds.shape[0] > MAX_FRAMES:
-      frames_ds_view, _, pad_end = window_view(
-        x=frames_ds, min_window_size=MAX_FRAMES, max_window_size=MAX_FRAMES,
-        overlap=OVERLAP, pad_mode='constant', const_val=0)
-      n = frames_ds_view.shape[0]
-      with concurrent.futures.ThreadPoolExecutor() as executor:
-        results = list(executor.map(lambda i: self.process_api(frames_ds_view[i]), range(n)))
-      sig_results, conf_results, live_results = zip(*results)
-      sig_ds = np.transpose(reduce_window_view(np.transpose(np.stack(sig_results), (0, 2, 1)), overlap=OVERLAP, pad_end=pad_end, hanning=False), (1, 0))
-      conf_ds = np.transpose(reduce_window_view(np.transpose(np.stack(conf_results), (0, 2, 1)), overlap=OVERLAP, pad_end=pad_end, hanning=False), (1, 0))
-      live_ds = reduce_window_view(np.stack(live_results), overlap=OVERLAP, pad_end=pad_end, hanning=False)
-    else:
+    # Check the number of frames to be processed
+    ds_len = frames_ds.shape[0]
+    if ds_len <= MAX_FRAMES:
+      # API supports up to MAX_FRAMES at once
       sig_ds, conf_ds, live_ds = self.process_api(frames_ds)
+    else:
+      # Longer videos are split up and processed in parallel
+      ds_len = frames_ds.shape[0]
+      n_splits = math.ceil((ds_len - MAX_FRAMES) / (MAX_FRAMES - OVERLAP)) + 1
+      split_len = math.ceil((ds_len + (n_splits-1) * OVERLAP) / n_splits)
+      start_idxs = [i for i in range(0, ds_len - n_splits * OVERLAP, split_len - OVERLAP)]
+      end_idxs = [min(i + split_len, ds_len) for i in start_idxs]
+      with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(lambda i: self.process_api(frames_ds[start_idxs[i]:end_idxs[i]]), range(n_splits)))
+      sig_results, conf_results, live_results = zip(*results)
+      sig_ds = np.concatenate([sig_results[0]] + [[x[OVERLAP:] for x in e] for e in sig_results[1:]], axis=-1)
+      conf_ds = np.concatenate([conf_results[0]] + [[x[OVERLAP:] for x in e] for e in conf_results[1:]], axis=-1)
+      live_ds = np.concatenate([live_results[0]] + [x[OVERLAP:] for x in live_results[1:]], axis=-1)      
     # Interpolate to original sampling rate (n_frames,)
     sig = interpolate_cubic_spline(
       x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
