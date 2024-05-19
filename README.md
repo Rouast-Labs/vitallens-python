@@ -65,12 +65,12 @@ This can also be configured using the following parameters:
 
 | Parameter           | Description                                                                           | Default |
 |---------------------|---------------------------------------------------------------------------------------|---------|
-| video               | The video to analyze. Either a path to a video file or np.ndarray. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L99)    |         |
+| video               | The video to analyze. Either a path to a video file or `np.ndarray`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L99)    |         |
 | faces               | Face detections. Required if `detect_faces=False`, otherwise ignored. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L102) | `None`  |
 | fps                 | Sampling frequency of the input video. Required if video is `np.ndarray`.             | `None`  |
 | override_fps_target | Target frequency for inference (optional - use methods's default otherwise).          | `None`  |
 
-The estimation results are returned as a `list` of faces, each containing a `dict` with estimates in the following structure:
+The estimation results are returned as a `list`. It contains a `dict` for each distinct face, with the following structure:
 
 ```
 [
@@ -110,7 +110,7 @@ vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
 result = vl("video.mp4")
 ```
 
-#### Example: Use POS method on an `np.ndarray` of video frames
+### Example: Use POS method on an `np.ndarray` of video frames
 
 ```python
 from vitallens import VitalLens, Method
