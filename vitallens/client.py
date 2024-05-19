@@ -110,18 +110,32 @@ class VitalLens:
         If not provided, will use default of the selected method.
     Returns:
       result: Analysis results as a list of faces in the following format:
-        [<face_0> {'face': <np.ndarray with face coords for each frame>,
-                   'pulse': {'val': <np.ndarray with estimated waveform val for each frame>,
-                             'conf': <np.ndarray with estimation confidence for each frame> },
-                   'resp': { same format as pulse ... },
-                   'hr': {'val': <estimated heart rate>,
-                          'conf': <estimation confidence>},
-                   'rr': {'val': <estimated respiratory rate>,
-                          'conf': <estimation confidence>},
-                   'live': <np.ndarray with liveness estimation for each frame>}
-                  },
-         <face_1> { ... },
-         ... ]
+        [
+          {
+            'face': <face coords for each frame as np.ndarray of shape (n_frames, 4)>,
+            'pulse': {
+              'val': <estimated pulse waveform val for each frame as np.ndarray of shape (n_frames,)>,
+              'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+            },
+            'resp': {
+              'val': <estimated respiration waveform val for each frame as np.ndarray of shape (n_frames,)>,
+              'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+            },
+            'hr': {
+              'val': <estimated heart rate as float scalar>,
+              'conf': <estimation confidence as float scalar>,
+            },
+            'rr': {
+              'val': <estimated respiratory rate as float scalar>,
+              'conf': <estimation confidence as float scalar>,
+            },
+            'live': <liveness estimation for each frame as np.ndarray of shape (n_frames,)>,
+          },
+          { 
+            <same structure for face 2 if present>
+          },
+          ...
+        ]
     """
     # Probe inputs
     inputs_shape, fps = probe_video_inputs(video=video, fps=fps)

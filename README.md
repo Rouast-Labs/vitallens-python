@@ -10,12 +10,11 @@ Estimate vital signs such as heart rate and respiratory rate from video.
 `vitallens-python` is a Python client for the [**VitalLens API**](https://www.rouast.com/vitallens/), using the same neural net for inference as our [free iOS app VitalLens](https://apps.apple.com/us/app/vitallens/id6472757649).
 Furthermore, it includes fast implementations of several other heart rate estimation methods from video such as `G`, `CHROM`, and `POS`.
 
-- Accepts either a video file on disk or a `np.ndarray` as input
-- Performs fast face detection if required
+- Accepts as input either a video filepath or an in-memory video as `np.ndarray`
+- Performs fast face detection if required - you can also pass existing detections
 - `vitallens.Method.VITALLENS` supports *heart rate*, *respiratory rate*, *pulse waveform*, and *respiratory waveform* estimation. In addition, it returns an estimation confidence for each vital. We are working to support more vital signs in the future.
 - `vitallens.Method.{G/CHROM/POS}` support faster, but less accurate *heart rate* and *pulse waveform* estimation.
-- While `VITALLENS` requires an API Key, `G`, `CHROM`, and `POS` do not.
-- You can get an API Key here: TODO
+- While `VITALLENS` requires an API Key, `G`, `CHROM`, and `POS` do not. You can get an API Key here: TODO
 
 Estimate vitals in a few lines of code:
 
@@ -46,4 +45,78 @@ Alternatively, it can be done by cloning the source:
 ```
 git clone https://github.com/Rouast-Labs/vitallens-python.git
 pip install "./vitallens-python[ffmpeg,numpy,tensorflow,torch,test]"
+```
+
+## How to use
+
+To start using `vitallens-python`, first create an instance of `vitallens.VitalLens`. 
+It can be configured using the following parameters:
+
+| Parameter      | Description                                                                        | Default            |
+|----------------|------------------------------------------------------------------------------------|--------------------|
+| method         | Inference method. {`Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`} | `Method.VITALLENS` |
+| api_key        | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
+| detect_faces   | `True` to detect faces. If `False`, will assume input is cropped to a single face. | `True`             |
+| fdet_max_faces | The maximum number of faces to detect (if necessary).                              | `2`                |
+| fdet_fs        | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
+
+Once instantiated, `vitallens.VitalLens` can be called to estimate vitals.
+This can also be configured using the following parameters:
+
+| Parameter           | Description                                                                           | Default |
+|---------------------|---------------------------------------------------------------------------------------|---------|
+| video               | The video to analyze. Either a path to a video file or np.ndarray. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L99)    |         |
+| faces               | Face detections. Required if `detect_faces=False`, otherwise ignored. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L102) | `None`  |
+| fps                 | Sampling frequency of the input video. Required if video is `np.ndarray`.             | `None`  |
+| override_fps_target | Target frequency for inference (optional - use methods's default otherwise).          | `None`  |
+
+The estimation results are returned as a `list` of faces, each containing a `dict` with estimates in the following structure:
+
+```
+[
+  {
+    'face': <face coords for each frame as np.ndarray of shape (n_frames, 4)>,
+    'pulse': {
+      'val': <estimated pulse waveform val for each frame as np.ndarray of shape (n_frames,)>,
+      'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+    },
+    'resp': {
+      'val': <estimated respiration waveform val for each frame as np.ndarray of shape (n_frames,)>,
+      'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+    },
+    'hr': {
+      'val': <estimated heart rate as float scalar>,
+      'conf': <estimation confidence as float scalar>,
+    },
+    'rr': {
+      'val': <estimated respiratory rate as float scalar>,
+      'conf': <estimation confidence as float scalar>,
+    },
+    'live': <liveness estimation for each frame as np.ndarray of shape (n_frames,)>,
+  },
+  { 
+    <same structure for face 2 if present>
+  },
+  ...
+]
+```
+
+### Example: Use VitalLens API to estimate vitals from a video file
+
+```python
+from vitallens import VitalLens, Method
+
+vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
+result = vl("video.mp4")
+```
+
+#### Example: Use POS method on an `np.ndarray` of video frames
+
+```python
+from vitallens import VitalLens, Method
+
+my_video_arr = ...
+my_video_fps = 30
+vl = VitalLens(method=Method.POS)
+result = vl(my_video_arr, fps=my_video_fps)
 ```
