@@ -24,6 +24,7 @@ dependencies = [
     "onnxruntime",
     "prpy[ffmpeg,numpy_min]>=0.2.4",
     "pyyaml",
+    "requests",
 ]
 dynamic = ["version"]
 
