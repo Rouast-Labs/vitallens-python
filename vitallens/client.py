@@ -56,8 +56,7 @@ class VitalLens:
     Args:
       method: The rPPG method to be used for inference.
       api_key: Usage key for the VitalLens API (required for Method.VITALLENS)
-      detect_faces: `True` if faces need to be detected. If `False`, VitalLens
-        will assume frames have been cropped to a stable ROI with a single face.
+      detect_faces: `True` if faces need to be detected, otherwise `False`.
       fdet_max_faces: The maximum number of faces to detect (if necessary).
       fdet_fs: Frequency [Hz] at which faces should be scanned. Detections are
         linearly interpolated for remaining frames.
@@ -99,8 +98,8 @@ class VitalLens:
       video: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         with a sequence of frames in unscaled uint8 RGB format, or a path to a
         video file. Note that aggressive video encoding destroys the rPPG signal.
-      faces: Face boxes in flat point form, containing [x0, y0, x1, y1] coords. Required
-        if detect_faces=False, otherwise ignored. list or np.ndarray of
+      faces: Face boxes in flat point form, containing [x0, y0, x1, y1] coords.
+        Ignored unless detect_faces=False. Pass a list or np.ndarray of
         shape (n_faces, n_frames, 4) for multiple faces detected on multiple frames,
         shape (n_frames, 4) for single face detected on mulitple frames, or
         shape (4,) for a single face detected globally, or

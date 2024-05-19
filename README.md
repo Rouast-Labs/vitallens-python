@@ -56,7 +56,7 @@ It can be configured using the following parameters:
 |----------------|------------------------------------------------------------------------------------|--------------------|
 | method         | Inference method. {`Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`} | `Method.VITALLENS` |
 | api_key        | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
-| detect_faces   | `True` to detect faces. If `False`, will assume input is cropped to a single face. | `True`             |
+| detect_faces   | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
 | fdet_max_faces | The maximum number of faces to detect (if necessary).                              | `2`                |
 | fdet_fs        | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
 
@@ -66,7 +66,7 @@ This can also be configured using the following parameters:
 | Parameter           | Description                                                                           | Default |
 |---------------------|---------------------------------------------------------------------------------------|---------|
 | video               | The video to analyze. Either a path to a video file or `np.ndarray`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L99)    |         |
-| faces               | Face detections. Required if `detect_faces=False`, otherwise ignored. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L102) | `None`  |
+| faces               | Face detections. Ignored unless `detect_faces=False`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L102) | `None`  |
 | fps                 | Sampling frequency of the input video. Required if video is `np.ndarray`.             | `None`  |
 | override_fps_target | Target frequency for inference (optional - use methods's default otherwise).          | `None`  |
 
