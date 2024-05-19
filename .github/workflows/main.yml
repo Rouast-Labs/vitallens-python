@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+
+    runs-on: [ubuntu-latest]
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10"]
+
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install ffmpeg
+        uses: Iamshankhadeep/setup-ffmpeg@v1.2
+        with:
+          version: "4.4"
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout vitallens-python
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install vitallens-python and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test]"
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Test with pytest
+        run: |
+          pytest
