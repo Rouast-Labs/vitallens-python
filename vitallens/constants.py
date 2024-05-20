@@ -20,8 +20,14 @@
 
 SECONDS_PER_MINUTE = 60.0
 
-### Minima and maxima of derived vitals
+# Minima and maxima of derived vitals
 CALC_HR_MIN = 40
 CALC_HR_MAX = 240
 CALC_RR_MIN = 1
 CALC_RR_MAX = 60
+
+# API settings
+API_MIN_FRAMES = 16
+API_MAX_FRAMES = 900
+API_OVERLAP = 30
+API_URL = "https://api.rouast.com/vitallens-v1"

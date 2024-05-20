@@ -92,4 +92,4 @@ class SimpleRPPGMethod(RPPGMethod):
     conf = np.ones_like(sig)
     live = np.ones_like(sig)
     # Return (1, n_frames)
-    return sig[np.newaxis], conf[np.newaxis], live[np.newaxis]
+    return sig[np.newaxis], conf[np.newaxis], live

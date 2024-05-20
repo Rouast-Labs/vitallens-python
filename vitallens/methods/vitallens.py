@@ -25,19 +25,16 @@ import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.signal import detrend, moving_average, standardize
 from prpy.numpy.signal import interpolate_cubic_spline
-from prpy.numpy.stride_tricks import window_view, reduce_window_view
 import json
 import logging
 import requests
 from typing import Union, Tuple
 
+from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from vitallens.utils import probe_video_inputs, parse_video_inputs
-
-MAX_FRAMES = 900
-OVERLAP = 30
 
 class VitalLensRPPGMethod(RPPGMethod):
   def __init__(
@@ -53,7 +50,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       self,
       frames: Union[np.ndarray, str],
       faces: np.ndarray,
-      fps: float,
+      fps: float = None,
       override_fps_target: float = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Estimate vitals from video frames using the VitalLens API.
@@ -85,24 +82,24 @@ class VitalLensRPPGMethod(RPPGMethod):
       library='prpy', scale_algorithm='bilinear')
     # Check the number of frames to be processed
     ds_len = frames_ds.shape[0]
-    if ds_len <= MAX_FRAMES:
+    if ds_len <= API_MAX_FRAMES:
       # API supports up to MAX_FRAMES at once - process all frames
       sig_ds, conf_ds, live_ds = self.process_api(frames_ds)
     else:
       # Longer videos are split up with small overlaps
       ds_len = frames_ds.shape[0]
-      n_splits = math.ceil((ds_len - MAX_FRAMES) / (MAX_FRAMES - OVERLAP)) + 1
-      split_len = math.ceil((ds_len + (n_splits-1) * OVERLAP) / n_splits)
-      start_idxs = [i for i in range(0, ds_len - n_splits * OVERLAP, split_len - OVERLAP)]
+      n_splits = math.ceil((ds_len - API_MAX_FRAMES) / (API_MAX_FRAMES - API_OVERLAP)) + 1
+      split_len = math.ceil((ds_len + (n_splits-1) * API_OVERLAP) / n_splits)
+      start_idxs = [i for i in range(0, ds_len - n_splits * API_OVERLAP, split_len - API_OVERLAP)]
       end_idxs = [min(i + split_len, ds_len) for i in start_idxs]
       # Process the splits in parallel
       with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(lambda i: self.process_api(frames_ds[start_idxs[i]:end_idxs[i]]), range(n_splits)))
       # Aggregate the results
       sig_results, conf_results, live_results = zip(*results)
-      sig_ds = np.concatenate([sig_results[0]] + [[x[OVERLAP:] for x in e] for e in sig_results[1:]], axis=-1)
-      conf_ds = np.concatenate([conf_results[0]] + [[x[OVERLAP:] for x in e] for e in conf_results[1:]], axis=-1)
-      live_ds = np.concatenate([live_results[0]] + [x[OVERLAP:] for x in live_results[1:]], axis=-1)      
+      sig_ds = np.concatenate([sig_results[0]] + [[x[API_OVERLAP:] for x in e] for e in sig_results[1:]], axis=-1)
+      conf_ds = np.concatenate([conf_results[0]] + [[x[API_OVERLAP:] for x in e] for e in conf_results[1:]], axis=-1)
+      live_ds = np.concatenate([live_results[0]] + [x[API_OVERLAP:] for x in live_results[1:]], axis=-1)      
     # Interpolate to original sampling rate (n_frames,)
     sig = interpolate_cubic_spline(
       x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
@@ -126,12 +123,12 @@ class VitalLensRPPGMethod(RPPGMethod):
       conf: Estimation confidence. Shape (n_sig, n_frames)
       live: Liveness estimation. Shape (n_frames,)
     """
-    assert frames.shape[0] <= MAX_FRAMES
+    assert frames.shape[0] <= API_MAX_FRAMES
     # Prepare API header and payload
     headers = {"x-api-key": self.api_key}
     payload = {"video": base64.b64encode(frames.tobytes()).decode('utf-8')}
     # Ask API to process video
-    response = requests.post("https://uimunafoxe.execute-api.ap-southeast-2.amazonaws.com/beta/process", headers=headers, json=payload)
+    response = requests.post(API_URL, headers=headers, json=payload)
     response_body = json.loads(response.text)
     # Check if call was successful
     if response.status_code != 200:
@@ -172,4 +169,3 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Return
     assert sig.shape == (n_frames,)
     return sig
-  

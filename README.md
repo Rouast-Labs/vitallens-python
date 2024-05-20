@@ -65,8 +65,8 @@ This can also be configured using the following parameters:
 
 | Parameter           | Description                                                                           | Default |
 |---------------------|---------------------------------------------------------------------------------------|---------|
-| video               | The video to analyze. Either a path to a video file or `np.ndarray`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L99)    |         |
-| faces               | Face detections. Ignored unless `detect_faces=False`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/2a674a22e910c432a7c9c135d5f7cc9f2cdb566c/vitallens/client.py#L102) | `None`  |
+| video               | The video to analyze. Either a path to a video file or `np.ndarray`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/ddcf48f29a2765fd98a7029c0f10075a33e44247/vitallens/client.py#L98)    |         |
+| faces               | Face detections. Ignored unless `detect_faces=False`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/ddcf48f29a2765fd98a7029c0f10075a33e44247/vitallens/client.py#L101) | `None`  |
 | fps                 | Sampling frequency of the input video. Required if video is `np.ndarray`.             | `None`  |
 | override_fps_target | Target frequency for inference (optional - use methods's default otherwise).          | `None`  |
 
@@ -119,4 +119,22 @@ my_video_arr = ...
 my_video_fps = 30
 vl = VitalLens(method=Method.POS)
 result = vl(my_video_arr, fps=my_video_fps)
+```
+
+## Linting and tests
+
+Before running tests, please make sure that you have an environment variable `VITALLENS_DEV_API_KEY` set to a valid API Key. 
+To lint and run tests:
+
+```
+flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+pytest
+```
+
+## Build
+
+To build:
+
+```
+python -m build
 ```

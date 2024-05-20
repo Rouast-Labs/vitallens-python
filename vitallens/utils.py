@@ -21,14 +21,14 @@
 import importlib.resources
 import logging
 import numpy as np
+import os
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.numpy.image import crop_slice_resize
 from typing import Union, Tuple
-import os
 import yaml
 
-MIN_N_FRAMES = 16
+from vitallens.constants import API_MIN_FRAMES
 
 def load_config(filename: str) -> dict:
   """Load a yaml config file.
@@ -78,7 +78,7 @@ def probe_video_inputs(
       raise ValueError("fps must be specified for ndarray input")
     if video.dtype != np.uint8:
       raise ValueError("video.dtype should be uint8, but got {}".format(video.dtype))
-    if len(video.shape) != 4 or video.shape[0] < MIN_N_FRAMES or video.shape[3] != 3:
+    if len(video.shape) != 4 or video.shape[0] < API_MIN_FRAMES or video.shape[3] != 3:
       raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(MIN_N_FRAMES, video.shape))
     return video.shape, fps
   else:
@@ -101,6 +101,8 @@ def parse_video_inputs(
     roi: The region of interest as (x0, y0, x1, y1). Use None to keep all.
     target_size: Optional target size as int or tuple (h, w)
     target_fps: Optional target framerate
+    library: Library to use for resample if video is np.ndarray
+    scale_algorithm: Algorithm to use for resample
   Returns:
     parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
       if target_size provided, h = target_size[0] and w = target_size[1].
@@ -118,26 +120,29 @@ def parse_video_inputs(
         if isinstance(target_size, tuple): target_size = (target_size[1], target_size[0])
         if abs(r) == 90: h = w_; w = h_
         else: h = h_; w = w_
-        parsed, ds_factor = read_video_from_path(
+        video, ds_factor = read_video_from_path(
           path=video, target_fps=target_fps, crop=roi, scale=target_size,
           pix_fmt='rgb24', dim_deltas=(1,1,1), scale_algorithm=scale_algorithm)
-        return parsed, fps, (n, h, w, 3), ds_factor
+        return video, fps, (n, h, w, 3), ds_factor
       except Exception as e:
         raise ValueError("Problem reading video from {}: {}".format(video, e))
     else:
       raise ValueError("No file found at {}".format(video))
   elif isinstance(video, np.ndarray):
+    video_shape_in = video.shape
     # Downsample / crop / scale if necessary
     ds_factor = 1
-    if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
-    elif target_fps is not None: ds_factor = max(round(fps / target_fps), 1)
-    if roi is not None or target_size is not None:
-      if target_size is None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))
-      target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
-      parsed = crop_slice_resize(
+    if target_fps is not None:
+      if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+      else: ds_factor = max(round(fps / target_fps), 1)
+    target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
+    if roi is not None or target_size is not None or target_idxs is not None:
+      if target_size is None and roi is not None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))
+      elif target_size is None: target_size = (video.shape[1], video.shape[2])
+      video = crop_slice_resize(
         inputs=video, target_size=target_size, roi=roi, target_idxs=target_idxs,
         preserve_aspect_ratio=False, library=library, scale_algorithm=scale_algorithm)
-    return parsed, fps, video.shape, ds_factor
+    return video, fps, video_shape_in, ds_factor
   else:
     raise ValueError("Invalid video {}, type {}".format(video, type(video)))
 
@@ -179,13 +184,16 @@ def check_faces(
     logging.info("No faces given - assuming that frames have been cropped to a single face")
     faces = np.tile(np.asarray([0, 0, w, h]), (n_frames, 1))[np.newaxis] # (1, n_frames, 4)
   else:
-    assert faces.shape[-1] == 4, "Face detections must be in flat point form"
+    faces = np.asarray(faces)
+    if faces.shape[-1] != 4: raise ValueError("Face detections must be in flat point form")
     if len(faces.shape) == 1:
       # Single face detection given - repeat for n_frames
       faces = np.tile(faces, (n_frames, 1))[np.newaxis] # (1, n_frames, 4)
     elif len(faces.shape) == 2:
       # Single face detections for multiple frames given
-      assert faces.shape[0] == n_frames, "Number of frames must match for inputs and face detections"
+      if faces.shape[0] != n_frames:
+        raise ValueError("Assuming detections of a single face for multiple frames given, but number of frames ({}) did not match number of face detections ({})".format(
+          n_frames, faces.shape[0]))
       faces = faces[np.newaxis]
     elif len(faces.shape) == 3:
       if faces.shape[1] == 1:
@@ -193,7 +201,10 @@ def check_faces(
         faces = np.tile(faces, (1, n_frames, 1)) # (n_faces, n_frames, 4)
       else:
         # Multiple face detections for multiple frames given
-        assert faces.shape[1] == n_frames, "Number of frames must match for inputs and face detections"
+        if faces.shape[1] != n_frames:
+          raise ValueError("Assuming detections of multiple faces for multiple frames given, but number of frames ({}) did not match number of detections for each face ({})".format(
+            n_frames, faces.shape[1]))
   # Check that x0 < x1 and y0 < y1 for all faces
-  assert np.all((faces[...,2] - faces[...,0]) > 0), "Face detections are invalid, should be in form [x0, y0, x1, y1]"
+  if not (np.all((faces[...,2] - faces[...,0]) > 0) and np.all((faces[...,3] - faces[...,1]) > 0)):
+    raise ValueError("Face detections are invalid, should be in form [x0, y0, x1, y1]")
   return faces
