@@ -79,7 +79,7 @@ def probe_video_inputs(
     if video.dtype != np.uint8:
       raise ValueError("video.dtype should be uint8, but got {}".format(video.dtype))
     if len(video.shape) != 4 or video.shape[0] < API_MIN_FRAMES or video.shape[3] != 3:
-      raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(MIN_N_FRAMES, video.shape))
+      raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(API_MIN_FRAMES, video.shape))
     return video.shape, fps
   else:
     raise ValueError("Invalid video {}, type {}".format(video, type(input)))

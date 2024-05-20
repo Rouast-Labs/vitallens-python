@@ -78,7 +78,7 @@ def create_mock_api_response(
   except Exception as e:
     return create_mock_response(status_code=400, json_data={"signal": None, "conf": None, "live": None, "message": "Error: {}".format(e)})
   if video.shape[0] < API_MIN_FRAMES or video.shape[0] > API_MAX_FRAMES:
-    return create_mock_response(status_code=400, json_data={"signal": None, "conf": None, "live": None, "message": "Error: {}".format(e)})
+    return create_mock_response(status_code=400, json_data={"signal": None, "conf": None, "live": None, "message": "Error"})
   return create_mock_response(
       status_code=200,
       json_data={"signal": np.random.rand(2, video.shape[0]).tolist(),
