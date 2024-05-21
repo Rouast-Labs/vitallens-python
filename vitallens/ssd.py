@@ -18,13 +18,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import importlib.resources
 import itertools
 import logging
 import numpy as np
 import os
 from prpy.numpy.signal import interpolate_vals
+import sys
 from typing import Tuple
+
+if sys.version_info >= (3.9):
+  from importlib.resources import files
+else:
+  from importlib_resources import files
 
 from vitallens.utils import parse_video_inputs
 
@@ -202,7 +207,7 @@ class FaceDetector:
       iou_threshold: Face detection iou threshold.
     """
     import onnxruntime as rt
-    with importlib.resources.files('vitallens.models.Ultra-Light-Fast-Generic-Face-Detector-1MB') as model_dir:
+    with files('vitallens.models.Ultra-Light-Fast-Generic-Face-Detector-1MB') as model_dir:
       self.model = rt.InferenceSession(os.path.join(model_dir, "model_rfb_320.onnx"), providers=['CPUExecutionProvider'])
     self.iou_threshold = iou_threshold if iou_threshold is not None else self.config['threshold']
     self.score_threshold = score_threshold
