@@ -14,7 +14,7 @@ Furthermore, it includes fast implementations of several other heart rate estima
 - Performs fast face detection if required - you can also pass existing detections
 - `vitallens.Method.VITALLENS` supports *heart rate*, *respiratory rate*, *pulse waveform*, and *respiratory waveform* estimation. In addition, it returns an estimation confidence for each vital. We are working to support more vital signs in the future.
 - `vitallens.Method.{G/CHROM/POS}` support faster, but less accurate *heart rate* and *pulse waveform* estimation.
-- While `VITALLENS` requires an API Key, `G`, `CHROM`, and `POS` do not. You can get an API Key here: TODO
+- While `VITALLENS` requires an API Key, `G`, `CHROM`, and `POS` do not. [Register on our website to get a free API Key.](https://www.rouast.com/api/)
 
 Estimate vitals in a few lines of code:
 
