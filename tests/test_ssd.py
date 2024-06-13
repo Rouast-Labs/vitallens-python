@@ -143,9 +143,9 @@ def test_FaceDetector(request, file):
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
     boxes, info = det(test_video_ndarray, fps=test_video_fps)
-  assert boxes.shape == (139, 1, 4)
-  assert info.shape == (139, 1, 5)
+  assert boxes.shape == (360, 1, 4)
+  assert info.shape == (360, 1, 5)
   np.testing.assert_allclose(boxes[0,0],
-                             [0.39557341, 0.16045742, 0.62178493, 0.60086358],
+                             [0.32223, 0.118318, 0.572684, 0.696835],
                              atol=0.01)
   

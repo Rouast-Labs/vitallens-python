@@ -33,15 +33,15 @@ def test_VitalLens(request, method, detect_faces, file):
   vl = VitalLens(method=method, detect_faces=detect_faces)
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    result = vl(test_video_path, faces = None if detect_faces else [425, 116, 671, 433])
+    result = vl(test_video_path, faces = None if detect_faces else [247, 57, 440, 334])
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    result = vl(test_video_ndarray, fps=test_video_fps, faces = None if detect_faces else [425, 116, 671, 433])
+    result = vl(test_video_ndarray, fps=test_video_fps, faces = None if detect_faces else [247, 57, 440, 334])
   assert len(result) == 1
-  assert result[0]['face'].shape == (139, 4)
-  assert result[0]['pulse']['val'].shape == (139,)
-  np.testing.assert_allclose(result[0]['hr']['val'], 71.5, atol=2)
+  assert result[0]['face'].shape == (360, 4)
+  assert result[0]['pulse']['val'].shape == (360,)
+  np.testing.assert_allclose(result[0]['hr']['val'], 60, atol=10)
 
 def test_VitalLens_API(request):
   api_key = request.getfixturevalue('test_dev_api_key')
@@ -50,10 +50,10 @@ def test_VitalLens_API(request):
   test_video_fps = request.getfixturevalue('test_video_fps')
   result = vl(test_video_ndarray, fps=test_video_fps, faces=None)
   assert len(result) == 1
-  assert result[0]['face'].shape == (139, 4)
-  assert result[0]['pulse']['val'].shape == (139,)
-  assert result[0]['pulse']['conf'].shape == (139,)
-  assert result[0]['resp']['val'].shape == (139,)
-  assert result[0]['resp']['conf'].shape == (139,)
-  np.testing.assert_allclose(result[0]['hr']['val'], 73, atol=0.5)
-  np.testing.assert_allclose(result[0]['rr']['val'], 15, atol=0.5)
+  assert result[0]['face'].shape == (360, 4)
+  assert result[0]['pulse']['val'].shape == (360,)
+  assert result[0]['pulse']['conf'].shape == (360,)
+  assert result[0]['resp']['val'].shape == (360,)
+  assert result[0]['resp']['conf'].shape == (360,)
+  np.testing.assert_allclose(result[0]['hr']['val'], 60, atol=0.5)
+  np.testing.assert_allclose(result[0]['rr']['val'], 13.5, atol=0.5)

@@ -28,8 +28,7 @@ sys.path.append('../vitallens-python')
 
 from vitallens.ssd import FaceDetector
 
-# TODO: Select a better test video
-TEST_VIDEO_PATH = "examples/test.mp4"
+TEST_VIDEO_PATH = "examples/sample_video_2.mp4"
 
 @pytest.fixture(scope='session')
 def test_video_path():
