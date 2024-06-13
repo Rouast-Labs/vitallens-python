@@ -31,6 +31,7 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
+from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
@@ -133,7 +134,14 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Check if call was successful
     if response.status_code != 200:
       logging.error("Error {}: {}".format(response.status_code, response_body['message']))
-      return [], [], []
+      if response.status_code == 403:
+        raise VitalLensAPIKeyError()
+      elif response.status_code == 429:
+        raise VitalLensAPIQuotaExceededError()
+      elif response.status_code == 400:
+        raise VitalLensAPIError("Error occurred in the API. Message: {}".format(response_body['message']))
+      else:
+        raise Exception("Error {}: {}".format(response.status_code, response_body['message']))
     # Parse response
     sig_ds = np.asarray(response_body["signal"])
     conf_ds = np.asarray(response_body["conf"])

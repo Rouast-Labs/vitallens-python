@@ -33,19 +33,18 @@ def run(args=None):
     video, _ = read_video_from_path(path=args.video_path, pix_fmt='rgb24')
     print("Video shape: {}".format(video.shape))
   # Estimate vitals and measure inference time
-  vl = VitalLens(
-    method=args.method,
-    api_key="YOUR_API_KEY")
+  vl = VitalLens(method=args.method, api_key=args.api_key)
   start = timeit.default_timer()
   result = vl(video=video, fps=fps)
   stop = timeit.default_timer()
-  print("Inference time: {:.2f} ms".format((stop-start)*1000))
+  time_ms = (stop-start)*1000
+  print("Inference time: {:.2f} ms".format(time_ms))
   # Plot the results
   if 'resp' in result[0]:
-    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(12, 6))
   else:
-    fig, ax1 = plt.subplots(1)
-  fig.suptitle('Vital signs estimated from {} using {}'.format(args.video_path, args.method.name))
+    fig, ax1 = plt.subplots(1, figsize=(12, 6))
+  fig.suptitle('Vital signs estimated from {} using {} in {:.2f} ms'.format(args.video_path, args.method.name, time_ms))
   if "pulse" in result[0] and ppg_gt is not None:
     hr_gt = estimate_freq(ppg_gt, f_s=fps, f_res=0.005, f_range=(40./60., 240./60.), method='periodogram') * 60.
     ax1.plot(ppg_gt, color=COLOR_GT, label='Pulse Ground Truth -> HR: {:.1f} bpm'.format(hr_gt))
@@ -72,9 +71,10 @@ def method_type(name):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
+  parser.add_argument('--api_key', type=str, default='', help='Your API key. Get one for free at https://www.rouast.com/api.')
   parser.add_argument('--vitals_path', type=str, default='examples/sample_vitals_1.csv', help='Path to ground truth vitals')
   parser.add_argument('--video_path', type=str, default='examples/sample_video_1.mp4', help='Path to video')
-  parser.add_argument('--method', type=method_type, default='POS', help='Choice of method', required=True)
+  parser.add_argument('--method', type=method_type, default='VITALLENS', help='Choice of method')
   parser.add_argument('--input_str', type=str2bool, default=True, help='If true, pass filepath to VitalLens, otherwise read video into memory first')
   args = parser.parse_args()
   run(args)

@@ -73,8 +73,9 @@ class VitalLens:
     elif self.config['model'] == 'pos':
       self.rppg = POSRPPGMethod(self.config)
     elif self.config['model'] == 'vitallens':
-      if self.api_key is None:
-        logging.warn("API key is required to use Method.VITALLENS. Get yours at www.rouast.com/api")
+      if self.api_key is None or self.api_key == '':
+        raise ValueError("An API key is required to use Method.VITALLENS, but was not provided. "
+                         "Get one for free at https://www.rouast.com/api.")
       self.rppg = VitalLensRPPGMethod(self.config, self.api_key)
     else:
       raise ValueError("Method {} not implemented!".format(self.config['model']))
