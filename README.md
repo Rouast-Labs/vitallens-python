@@ -46,7 +46,7 @@ Alternatively, it can be done by cloning the source:
 
 ```
 git clone https://github.com/Rouast-Labs/vitallens-python.git
-pip install "./vitallens-python[ffmpeg,numpy,tensorflow,torch,test]"
+pip install ./vitallens-python
 ```
 
 ## How to use
