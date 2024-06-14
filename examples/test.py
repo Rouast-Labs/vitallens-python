@@ -52,12 +52,10 @@ def run(args=None):
     rr_label = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(4./60., 90./60.), method='periodogram') * 60.
     ax2.plot(resp_gt, color=COLOR_GT, label='Resp Ground Truth -> RR: {:.1f} bpm'.format(rr_label))
   if "pulse" in result[0]:
-    hr = estimate_freq(result[0]['pulse']['val'], f_s=fps, f_res=0.005, f_range=(40./60., 240./60.), method='periodogram') * 60.
-    ax1.plot(result[0]['pulse']['val'], color=METHOD_COLORS[args.method], label='Pulse Estimate -> HR: {:.1f} bpm'.format(hr))
+    ax1.plot(result[0]['pulse']['val'], color=METHOD_COLORS[args.method], label='Pulse Estimate -> HR: {:.1f} bpm ({:.1f}% confidence)'.format(result[0]['hr']['val'], result[0]['hr']['conf']*100))
     ax1.plot(result[0]['pulse']['conf'], color=METHOD_COLORS[args.method], label='Pulse Estimation Confidence')
   if "resp" in result[0]:
-    rr = estimate_freq(result[0]['resp']['val'], f_s=fps, f_res=0.005, f_range=(4./60., 90./60.), method='periodogram') * 60.
-    ax2.plot(result[0]['resp']['val'], color=METHOD_COLORS[args.method], label='Resp Estimate -> RR: {:.1f} bpm'.format(rr))
+    ax2.plot(result[0]['resp']['val'], color=METHOD_COLORS[args.method], label='Resp Estimate -> RR: {:.1f} bpm ({:.1f}% confidence)'.format(result[0]['rr']['val'], result[0]['rr']['conf']*100))
     ax2.plot(result[0]['resp']['conf'], color=METHOD_COLORS[args.method], label='Resp Estimation Confidence')
   ax1.legend()
   if 'resp' in result[0]: ax2.legend()
