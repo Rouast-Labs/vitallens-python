@@ -30,7 +30,7 @@ print(result)
 
 `vitallens-python` provides vital sign estimates for general wellness purposes only. It is not intended for medical use. Always consult with your doctor for any health concerns or for medically precise measurement.
 
-See also our [Terms of Service for the VitalLens API](https://www.rouast.com/vitallens/api/terms) and our [Privacy Policy](https://www.rouast.com/vitallens/privacy).
+See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api/terms) and our [Privacy Policy](https://www.rouast.com/privacy).
 
 ## Installation
 
