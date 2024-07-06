@@ -40,25 +40,28 @@ def run(args=None):
   time_ms = (stop-start)*1000
   print("Inference time: {:.2f} ms".format(time_ms))
   # Plot the results
-  if 'resp' in result[0]:
+  vital_signs = result[0]['vital_signs']
+  if "respiratory_waveform" in vital_signs:
     fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(12, 6))
   else:
     fig, ax1 = plt.subplots(1, figsize=(12, 6))
   fig.suptitle('Vital signs estimated from {} using {} in {:.2f} ms'.format(args.video_path, args.method.name, time_ms))
-  if "pulse" in result[0] and ppg_gt is not None:
+  if "ppg_waveform" in vital_signs and ppg_gt is not None:
     hr_gt = estimate_freq(ppg_gt, f_s=fps, f_res=0.005, f_range=(40./60., 240./60.), method='periodogram') * 60.
-    ax1.plot(ppg_gt, color=COLOR_GT, label='Pulse Ground Truth -> HR: {:.1f} bpm'.format(hr_gt))
-  if "resp" in result[0] and resp_gt is not None:
-    rr_label = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(4./60., 90./60.), method='periodogram') * 60.
-    ax2.plot(resp_gt, color=COLOR_GT, label='Resp Ground Truth -> RR: {:.1f} bpm'.format(rr_label))
-  if "pulse" in result[0]:
-    ax1.plot(result[0]['pulse']['val'], color=METHOD_COLORS[args.method], label='Pulse Estimate -> HR: {:.1f} bpm ({:.1f}% confidence)'.format(result[0]['hr']['val'], result[0]['hr']['conf']*100))
-    ax1.plot(result[0]['pulse']['conf'], color=METHOD_COLORS[args.method], label='Pulse Estimation Confidence')
-  if "resp" in result[0]:
-    ax2.plot(result[0]['resp']['val'], color=METHOD_COLORS[args.method], label='Resp Estimate -> RR: {:.1f} bpm ({:.1f}% confidence)'.format(result[0]['rr']['val'], result[0]['rr']['conf']*100))
-    ax2.plot(result[0]['resp']['conf'], color=METHOD_COLORS[args.method], label='Resp Estimation Confidence')
+    ax1.plot(ppg_gt, color=COLOR_GT, label='PPG Waveform Ground Truth -> HR: {:.1f} bpm'.format(hr_gt))
+  if "respiratory_waveform" in vital_signs and resp_gt is not None:
+    rr_gt = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(4./60., 90./60.), method='periodogram') * 60.
+    ax2.plot(resp_gt, color=COLOR_GT, label='Respiratory Waveform Ground Truth -> RR: {:.1f} bpm'.format(rr_gt))
+  if "ppg_waveform" in vital_signs:
+    ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimate -> HR: {:.1f} bpm ({:.0f}% confidence)'.format(
+      vital_signs['heart_rate']['value'], vital_signs['heart_rate']['confidence']*100))
+    ax1.plot(vital_signs['ppg_waveform']['confidence'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimation Confidence')
+  if "respiratory_waveform" in vital_signs:
+    ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimate -> RR: {:.1f} bpm ({:.0f}% confidence)'.format(
+      vital_signs['respiratory_rate']['value'], vital_signs['respiratory_rate']['confidence']*100))
+    ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimation Confidence')
   ax1.legend()
-  if 'resp' in result[0]: ax2.legend()
+  if 'respiratory_waveform' in vital_signs: ax2.legend()
   plt.show()
 
 def method_type(name):

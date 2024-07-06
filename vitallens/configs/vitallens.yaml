@@ -28,7 +28,7 @@ model: 'vitallens'
 # Size of the input
 input_size: 40
 # List estimated signals
-signals: ['pulse', 'resp']
+signals: ['heart_rate', 'respiratory_rate', 'ppg_waveform', 'respiratory_waveform']
 
 ##### rPPG settings #####
 # The ROI used as model input

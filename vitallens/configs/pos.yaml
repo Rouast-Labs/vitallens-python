@@ -28,7 +28,7 @@ model: 'pos'
 # Size of the input
 input_size: null
 # List estimated signals
-signals: ['pulse']
+signals: ['heart_rate', 'ppg_waveform']
 
 ##### rPPG settings #####
 # The ROI used as model input

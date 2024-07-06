@@ -39,9 +39,12 @@ def test_VitalLens(request, method, detect_faces, file):
     test_video_fps = request.getfixturevalue('test_video_fps')
     result = vl(test_video_ndarray, fps=test_video_fps, faces = None if detect_faces else [247, 57, 440, 334])
   assert len(result) == 1
-  assert result[0]['face'].shape == (360, 4)
-  assert result[0]['pulse']['val'].shape == (360,)
-  np.testing.assert_allclose(result[0]['hr']['val'], 60, atol=10)
+  assert result[0]['face']['coordinates'].shape == (360, 4)
+  assert result[0]['face']['confidence'].shape == (360,)
+  assert result[0]['vital_signs']['ppg_waveform']['data'].shape == (360,)
+  assert result[0]['vital_signs']['ppg_waveform']['confidence'].shape == (360,)
+  np.testing.assert_allclose(result[0]['vital_signs']['heart_rate']['value'], 60, atol=10)
+  assert result[0]['vital_signs']['heart_rate']['confidence'] == 1.0
 
 def test_VitalLens_API(request):
   api_key = request.getfixturevalue('test_dev_api_key')
@@ -50,10 +53,12 @@ def test_VitalLens_API(request):
   test_video_fps = request.getfixturevalue('test_video_fps')
   result = vl(test_video_ndarray, fps=test_video_fps, faces=None)
   assert len(result) == 1
-  assert result[0]['face'].shape == (360, 4)
-  assert result[0]['pulse']['val'].shape == (360,)
-  assert result[0]['pulse']['conf'].shape == (360,)
-  assert result[0]['resp']['val'].shape == (360,)
-  assert result[0]['resp']['conf'].shape == (360,)
-  np.testing.assert_allclose(result[0]['hr']['val'], 60, atol=0.5)
-  np.testing.assert_allclose(result[0]['rr']['val'], 13.5, atol=0.5)
+  assert result[0]['face']['coordinates'].shape == (360, 4)
+  assert result[0]['vital_signs']['ppg_waveform']['data'].shape == (360,)
+  assert result[0]['vital_signs']['ppg_waveform']['confidence'].shape == (360,)
+  assert result[0]['vital_signs']['respiratory_waveform']['data'].shape == (360,)
+  assert result[0]['vital_signs']['respiratory_waveform']['confidence'].shape == (360,)
+  np.testing.assert_allclose(result[0]['vital_signs']['heart_rate']['value'], 60, atol=0.5)
+  np.testing.assert_allclose(result[0]['vital_signs']['heart_rate']['confidence'], 1.0, atol=0.1)
+  np.testing.assert_allclose(result[0]['vital_signs']['respiratory_rate']['value'], 13.5, atol=0.5)
+  np.testing.assert_allclose(result[0]['vital_signs']['respiratory_rate']['confidence'], 1.0, atol=0.1)

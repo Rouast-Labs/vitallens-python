@@ -24,13 +24,14 @@ import math
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.signal import detrend, moving_average, standardize
-from prpy.numpy.signal import interpolate_cubic_spline
+from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
 import json
 import logging
 import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
+from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
@@ -44,9 +45,10 @@ class VitalLensRPPGMethod(RPPGMethod):
       api_key: str
     ):
     super(VitalLensRPPGMethod, self).__init__(config=config)
+    self.api_key = api_key
     self.input_size = config['input_size']
     self.roi_method = config['roi_method']
-    self.api_key = api_key
+    self.signals = config['signals']
   def __call__(
       self,
       frames: Union[np.ndarray, str],
@@ -109,19 +111,54 @@ class VitalLensRPPGMethod(RPPGMethod):
     live = interpolate_cubic_spline(
       x=np.arange(inputs_shape[0])[0::ds_factor], y=live_ds, xs=np.arange(inputs_shape[0]), axis=0)
     # Filter (n_frames,)
-    sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['pulse', 'resp'])])
-    return sig, conf, live
+    sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
+    # Estimate summary vitals
+    hr = estimate_freq(
+      sig[0], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
+      f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
+      method='periodogram') * SECONDS_PER_MINUTE
+    rr = estimate_freq(
+      sig[1], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
+      f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
+      method='periodogram') * SECONDS_PER_MINUTE
+    # Confidences
+    hr_conf = float(np.mean(conf[0]))
+    rr_conf = float(np.mean(conf[1]))
+    # Assemble results
+    out_data, out_unit, out_conf, out_note = {}, {}, {}, {}
+    for name in self.signals:
+      if name == 'heart_rate':
+        out_data[name] = hr
+        out_unit[name] = 'bpm'
+        out_conf[name] = hr_conf
+        out_note[name] = 'Estimate of the heart rate using VitalLens, along with a confidence level between 0 and 1.'
+      elif name == 'respiratory_rate':
+        out_data[name] = rr
+        out_unit[name] = 'bpm'
+        out_conf[name] = rr_conf
+        out_note[name] = 'Estimate of the respiratory rate using VitalLens, along with a confidence level between 0 and 1.'
+      elif name == 'ppg_waveform':
+        out_data[name] = sig[0]
+        out_unit[name] = 'unitless'
+        out_conf[name] = conf[0]
+        out_note[name] = 'Estimate of the ppg waveform using VitalLens, along with a frame-wise confidences between 0 and 1.'
+      elif name == 'respiratory_waveform':
+        out_data[name] = sig[1]
+        out_unit[name] = 'unitless'
+        out_conf[name] = conf[1]
+        out_note[name] = 'Estimate of the respiratory waveform using VitalLens, along with a frame-wise confidences between 0 and 1.'
+    return out_data, out_unit, out_conf, out_note, live
   def process_api(
       self,
-      frames: np.ndarray
+      frames: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Process frames with the VitalLens API.
 
     Args:
       frames: The video frames. Shape (n_frames<=MAX_FRAMES, h==input_size, w==input_size, 3)
     Returns:
-      sig: Estimated pulse signal. Shape (n_sig, n_frames)
-      conf: Estimation confidence. Shape (n_sig, n_frames)
+      sig: Estimated signals. Shape (n_sig, n_frames)
+      conf: Estimation confidences. Shape (n_sig, n_frames)
       live: Liveness estimation. Shape (n_frames,)
     """
     assert frames.shape[0] <= API_MAX_FRAMES
@@ -143,11 +180,17 @@ class VitalLensRPPGMethod(RPPGMethod):
       else:
         raise Exception("Error {}: {}".format(response.status_code, response_body['message']))
     # Parse response
-    sig_ds = np.asarray(response_body["signal"])
-    conf_ds = np.asarray(response_body["conf"])
-    live_ds = np.asarray(response_body["live"])
+    sig_ds = np.stack([
+      np.asarray(response_body["vital_signs"]["ppg_waveform"]["data"]),
+      np.asarray(response_body["vital_signs"]["respiratory_waveform"]["data"]),
+    ], axis=0)
+    conf_ds = np.stack([
+      np.asarray(response_body["vital_signs"]["ppg_waveform"]["confidence"]),
+      np.asarray(response_body["vital_signs"]["respiratory_waveform"]["confidence"]),
+    ], axis=0)
+    live_ds = np.asarray(response_body["face"]["confidence"])
     return sig_ds, conf_ds, live_ds
-  def postprocess(self, sig, fps, type='pulse', filter=True):
+  def postprocess(self, sig, fps, type='ppg', filter=True):
     """Apply filters to the estimated signal. 
     Args:
       sig: The estimated signal. Shape (n_frames,)
@@ -160,7 +203,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     n_frames = sig.shape[-1]
     if filter:
       # Get filter parameters
-      if type == 'pulse':
+      if type == 'ppg':
         size = moving_average_size_for_hr_response(fps)
         Lambda = detrend_lambda_for_hr_response(fps)
       elif type == 'resp':

@@ -21,10 +21,9 @@
 from enum import IntEnum
 import logging
 import numpy as np
-from prpy.numpy.signal import estimate_freq
 from typing import Union
 
-from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
+from vitallens.constants import DISCLAIMER
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
@@ -111,24 +110,38 @@ class VitalLens:
       result: Analysis results as a list of faces in the following format:
         [
           {
-            'face': <face coords for each frame as np.ndarray of shape (n_frames, 4)>,
-            'pulse': {
-              'val': <estimated pulse waveform val for each frame as np.ndarray of shape (n_frames,)>,
-              'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+            'face': {
+              'coordinates': <Face coordinates for each frame as np.ndarray of shape (n_frames, 4)>,
+              'confidence': <Face live confidence for each frame as np.ndarray of shape (n_frames,)>,
+              'note': <Explanatory note>
             },
-            'resp': {
-              'val': <estimated respiration waveform val for each frame as np.ndarray of shape (n_frames,)>,
-              'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+            'vital_signs': {
+              'heart_rate': {
+                  'value': <Estimated value as float scalar>,
+                  'unit': <Value unit>,
+                  'confidence': <Estimation confidence as float scalar>,
+                  'note': <Explanatory note>
+                },
+              'respiratory_rate': {
+                'value': <Estimated value as float scalar>,
+                'unit': <Value unit>,
+                'confidence': <Estimation confidence as float scalar>,
+                'note': <Explanatory note>
+              },
+              'ppg_waveform': {
+                'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
+                'unit': <Data unit>,
+                'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+                'note': <Explanatory note>
+              },
+              'respiratory_waveform': {
+                'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
+                'unit': <Data unit>,
+                'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+                'note': <Explanatory note>
+              },
             },
-            'hr': {
-              'val': <estimated heart rate as float scalar>,
-              'conf': <estimation confidence as float scalar>,
-            },
-            'rr': {
-              'val': <estimated respiratory rate as float scalar>,
-              'conf': <estimation confidence as float scalar>,
-            },
-            'live': <liveness estimation for each frame as np.ndarray of shape (n_frames,)>,
+            "message": <Message about estimates>
           },
           { 
             <same structure for face 2 if present>
@@ -155,31 +168,25 @@ class VitalLens:
     # Run separately for each face
     results = []
     for face in faces:
-      # Run rPPG
-      sig, conf, live = self.rppg(
+      # Run selected rPPG method
+      data, unit, conf, note, live = self.rppg(
         frames=video, faces=face, fps=fps, override_fps_target=override_fps_target)
-      face_result = {'face': face}
-      # Add raw signal estimations to results
-      for vals, conf, name in zip(sig, conf, self.config['signals']):
-        face_result[name] = {'val': vals, 'conf': conf}
-      # Compute summary vital estimations from raw signal estimations
-      if 'pulse' in self.config['signals']:
-        face_result['hr'] = {
-          'val': estimate_freq(
-            face_result['pulse']['val'], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-            f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
-            method='periodogram') * SECONDS_PER_MINUTE,
-          'conf': np.mean(face_result['pulse']['conf'])
+      # Parse face results
+      face_result = {'face': {
+        'coordinates': face,
+        'confidence': live,
+        'note': "Face detection coordinates for this face, along with live confidence levels."
+      }}
+      # Parse vital signs results
+      vital_signs_results = {}
+      for name in self.config['signals']:
+        vital_signs_results[name] = {
+          '{}'.format('data' if 'waveform' in name else 'value'): data[name],
+          'unit': unit[name],
+          'confidence': conf[name],
+          'note': note[name]
         }
-      if 'resp' in self.config['signals']:
-        face_result['rr'] = {
-          'val': estimate_freq(
-            face_result['resp']['val'], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-            f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
-            method='periodogram') * SECONDS_PER_MINUTE,
-          'conf': np.mean(face_result['resp']['conf'])
-        }
-      # Add liveness estimation
-      face_result['live'] = live
+      face_result['vital_signs'] = vital_signs_results
+      face_result['message'] = DISCLAIMER
       results.append(face_result)
     return results
