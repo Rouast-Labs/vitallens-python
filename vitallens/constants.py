@@ -18,6 +18,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
 SECONDS_PER_MINUTE = 60.0
 
 # Minima and maxima of derived vitals
@@ -31,3 +35,5 @@ API_MIN_FRAMES = 16
 API_MAX_FRAMES = 900
 API_OVERLAP = 30
 API_URL = "https://api.rouast.com/vitallens-v1"
+if 'API_URL' in os.environ:
+  API_URL = os.getenv('API_URL')

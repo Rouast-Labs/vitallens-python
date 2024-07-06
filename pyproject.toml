@@ -23,6 +23,7 @@ dependencies = [
     "numpy",
     "onnxruntime",
     "prpy[ffmpeg,numpy_min]>=0.2.7",
+    "python-dotenv",
     "pyyaml",
     "requests",
 ]
