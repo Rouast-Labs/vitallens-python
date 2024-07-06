@@ -34,7 +34,7 @@ CALC_RR_MAX = 60
 API_MIN_FRAMES = 16
 API_MAX_FRAMES = 900
 API_OVERLAP = 30
-API_URL = "https://api.rouast.com/vitallens-v1"
+API_URL = "https://api.rouast.com/vitallens-v2"
 if 'API_URL' in os.environ:
   API_URL = os.getenv('API_URL')
 
