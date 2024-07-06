@@ -77,30 +77,44 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
 ```
 [
   {
-    'face': <face coords for each frame as np.ndarray of shape (n_frames, 4)>,
-    'pulse': {
-      'val': <estimated pulse waveform val for each frame as np.ndarray of shape (n_frames,)>,
-      'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+    'face': {
+      'coordinates': <Face coordinates for each frame as np.ndarray of shape (n_frames, 4)>,
+      'confidence': <Face live confidence for each frame as np.ndarray of shape (n_frames,)>,
+      'note': <Explanatory note>
     },
-    'resp': {
-      'val': <estimated respiration waveform val for each frame as np.ndarray of shape (n_frames,)>,
-      'conf': <estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+    'vital_signs': {
+      'heart_rate': {
+          'value': <Estimated value as float scalar>,
+          'unit': <Value unit>,
+          'confidence': <Estimation confidence as float scalar>,
+          'note': <Explanatory note>
+        },
+      'respiratory_rate': {
+        'value': <Estimated value as float scalar>,
+        'unit': <Value unit>,
+        'confidence': <Estimation confidence as float scalar>,
+        'note': <Explanatory note>
+      },
+      'ppg_waveform': {
+        'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
+        'unit': <Data unit>,
+        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+        'note': <Explanatory note>
+      },
+      'respiratory_waveform': {
+        'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
+        'unit': <Data unit>,
+        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+        'note': <Explanatory note>
+      },
     },
-    'hr': {
-      'val': <estimated heart rate as float scalar>,
-      'conf': <estimation confidence as float scalar>,
-    },
-    'rr': {
-      'val': <estimated respiratory rate as float scalar>,
-      'conf': <estimation confidence as float scalar>,
-    },
-    'live': <liveness estimation for each frame as np.ndarray of shape (n_frames,)>,
+    "message": <Message about estimates>
   },
   { 
     <same structure for face 2 if present>
   },
   ...
-]
+  ]
 ```
 
 ### Example: Use VitalLens API to estimate vitals from a video file

@@ -40,11 +40,17 @@ def test_CHROMRPPGMethod(request, override_fps_target):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  sig, conf, live = method(
+  data, unit, conf, note, live = method(
     frames=test_video_ndarray, faces=test_video_faces,
     fps=test_video_fps, override_fps_target=override_fps_target)
-  assert sig.shape == (1, test_video_ndarray.shape[0])
-  np.testing.assert_equal(conf, np.ones((1, test_video_ndarray.shape[0]), np.float32))
+  assert all(key in data for key in method.signals)
+  assert all(key in unit for key in method.signals)
+  assert all(key in conf for key in method.signals)
+  assert all(key in note for key in method.signals)
+  assert data['ppg_waveform'].shape == (test_video_ndarray.shape[0],)
+  assert conf['ppg_waveform'].shape == (test_video_ndarray.shape[0],)
+  np.testing.assert_equal(conf['ppg_waveform'], np.ones((test_video_ndarray.shape[0],), np.float32))
+  assert conf['heart_rate'] == 1.0
   np.testing.assert_equal(live, np.ones((test_video_ndarray.shape[0],), np.float32))
 
 @pytest.mark.parametrize("override_fps_target", [None, 15])
@@ -58,11 +64,17 @@ def test_GRPPGMethod(request, override_fps_target):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  sig, conf, live = method(
+  data, unit, conf, note, live = method(
     frames=test_video_ndarray, faces=test_video_faces,
     fps=test_video_fps, override_fps_target=override_fps_target)
-  assert sig.shape == (1, test_video_ndarray.shape[0])
-  np.testing.assert_equal(conf, np.ones((1, test_video_ndarray.shape[0]), np.float32))
+  assert all(key in data for key in method.signals)
+  assert all(key in unit for key in method.signals)
+  assert all(key in conf for key in method.signals)
+  assert all(key in note for key in method.signals)
+  assert data['ppg_waveform'].shape == (test_video_ndarray.shape[0],)
+  assert conf['ppg_waveform'].shape == (test_video_ndarray.shape[0],)
+  np.testing.assert_equal(conf['ppg_waveform'], np.ones((test_video_ndarray.shape[0],), np.float32))
+  assert conf['heart_rate'] == 1.0
   np.testing.assert_equal(live, np.ones((test_video_ndarray.shape[0],), np.float32))
 
 @pytest.mark.parametrize("override_fps_target", [None, 15])
@@ -76,9 +88,15 @@ def test_POSRPPGMethod(request, override_fps_target):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  sig, conf, live = method(
+  data, unit, conf, note, live = method(
     frames=test_video_ndarray, faces=test_video_faces,
     fps=test_video_fps, override_fps_target=override_fps_target)
-  assert sig.shape == (1, test_video_ndarray.shape[0])
-  np.testing.assert_equal(conf, np.ones((1, test_video_ndarray.shape[0]), np.float32))
+  assert all(key in data for key in method.signals)
+  assert all(key in unit for key in method.signals)
+  assert all(key in conf for key in method.signals)
+  assert all(key in note for key in method.signals)
+  assert data['ppg_waveform'].shape == (test_video_ndarray.shape[0],)
+  assert conf['ppg_waveform'].shape == (test_video_ndarray.shape[0],)
+  np.testing.assert_equal(conf['ppg_waveform'], np.ones((test_video_ndarray.shape[0],), np.float32))
+  assert conf['heart_rate'] == 1.0
   np.testing.assert_equal(live, np.ones((test_video_ndarray.shape[0],), np.float32))
