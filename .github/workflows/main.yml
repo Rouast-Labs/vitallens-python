@@ -2,18 +2,17 @@ name: Tests
 
 on:
   push:
-    branches: ["main", "development"]
+    branches: ['*']
   pull_request:
-    branches: ["main", "development"]
+    branches: ["main"]
 
 jobs:
-  build:
+  linux:
 
-    runs-on: [ubuntu-latest]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
-
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -32,8 +31,41 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
-      - name: Set API_URL for development branch
-        if: github.ref == 'refs/heads/development'
+      - name: Set development API_URL for non-main branches
+        if: github.ref != 'refs/heads/main'
+        run: echo "API_URL=https://api.rouast.com/vitallens-dev" >> $GITHUB_ENV
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Test with pytest
+        env:
+          VITALLENS_DEV_API_KEY: ${{ secrets.VITALLENS_DEV_API_KEY }}
+        run: |
+          pytest
+
+  windows:
+
+    runs-on: windows-latest
+    steps:
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install ffmpeg
+        uses: Iamshankhadeep/setup-ffmpeg@v1.2
+        with:
+          version: "4.4"
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout vitallens-python
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install vitallens-python and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test]"
+      - name: Set development API_URL for non-main branches
+        if: github.ref != 'refs/heads/main'
         run: echo "API_URL=https://api.rouast.com/vitallens-dev" >> $GITHUB_ENV
       - name: Lint with flake8
         run: |

@@ -61,7 +61,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     Args:
       frames: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         in unscaled uint8 RGB format, or a path to a video file.
-      faces: The face detection boxes. Shape (n_frames, 4) in form (x0, y0, x1, y1)
+      faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
     Returns:

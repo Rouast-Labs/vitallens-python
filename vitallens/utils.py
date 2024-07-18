@@ -182,9 +182,9 @@ def check_faces(
   if faces is None:
     # Assume that each entire frame is a single face
     logging.info("No faces given - assuming that frames have been cropped to a single face")
-    faces = np.tile(np.asarray([0, 0, w, h]), (n_frames, 1))[np.newaxis] # (1, n_frames, 4)
+    faces = np.tile(np.asarray([0, 0, w, h], dtype=np.int64), (n_frames, 1))[np.newaxis] # (1, n_frames, 4)
   else:
-    faces = np.asarray(faces)
+    faces = np.asarray(faces, dtype=np.int64)
     if faces.shape[-1] != 4: raise ValueError("Face detections must be in flat point form")
     if len(faces.shape) == 1:
       # Single face detection given - repeat for n_frames
