@@ -160,7 +160,7 @@ class VitalLens:
         logging.warn("No faces to analyze")
         return []
       # Convert to absolute units
-      faces = (faces_rel * [width, height, width, height]).astype(int)
+      faces = (faces_rel * [width, height, width, height]).astype(np.int64)
       # Face axis first
       faces = np.transpose(faces, (1, 0, 2))
     # Check if the faces are valid

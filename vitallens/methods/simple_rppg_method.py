@@ -62,7 +62,7 @@ class SimpleRPPGMethod(RPPGMethod):
 
     Args:
       frames: The video frames. Shape (n_frames, h, w, c)
-      faces: The face detection boxes. Shape (n_frames, 4) in form (x0, y0, x1, y1)
+      faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
     Returns:

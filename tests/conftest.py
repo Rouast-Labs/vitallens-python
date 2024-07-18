@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import numpy as np
 import os
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
@@ -52,7 +53,7 @@ def test_video_faces(request):
   test_video_fps = request.getfixturevalue('test_video_fps')
   boxes, _ = det(test_video_ndarray, fps=test_video_fps)
   boxes = (boxes * [test_video_ndarray.shape[2], test_video_ndarray.shape[1], test_video_ndarray.shape[2], test_video_ndarray.shape[1]]).astype(int)
-  return boxes[:,0]
+  return boxes[:,0].astype(np.int64)
 
 @pytest.fixture(scope='session')
 def test_dev_api_key():
