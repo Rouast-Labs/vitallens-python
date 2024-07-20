@@ -219,7 +219,7 @@ class FaceDetector:
       self,
       inputs: Tuple[np.ndarray, str],
       inputs_shape: Tuple[tuple, float],
-      fps: float = None
+      fps: float
     ) -> Tuple[np.ndarray, np.ndarray]:
     """Run inference.
 
@@ -227,7 +227,7 @@ class FaceDetector:
       inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
       inputs_shape: The shape of the input video as (n_frames, h, w, 3)
-      fps: Sampling frequency of the input video. Required if type(video) == np.ndarray.
+      fps: Sampling frequency of the input video.
     Returns:
       boxes: Detected face boxes in relative flat point form (n_frames, n_faces, 4)
       info: Tuple (idx, scanned, scan_found_face, interp_valid, confidence) (n_frames, n_faces, 5)

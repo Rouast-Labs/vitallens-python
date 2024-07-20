@@ -46,12 +46,19 @@ def test_video_fps():
   return fps
 
 @pytest.fixture(scope='session')
+def test_video_shape():
+  _, n, w, h, _, _, _ = probe_video(TEST_VIDEO_PATH)
+  return (n, h, w, 3)
+
+@pytest.fixture(scope='session')
 def test_video_faces(request):
   det = FaceDetector(
     max_faces=1, fs=1.0, iou_threshold=0.45, score_threshold=0.9)
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
-  boxes, _ = det(test_video_ndarray, fps=test_video_fps)
+  boxes, _ = det(test_video_ndarray,
+                 inputs_shape=test_video_ndarray.shape,
+                 fps=test_video_fps)
   boxes = (boxes * [test_video_ndarray.shape[2], test_video_ndarray.shape[1], test_video_ndarray.shape[2], test_video_ndarray.shape[1]]).astype(int)
   return boxes[:,0].astype(np.int64)
 

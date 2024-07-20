@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import numpy as np
+from prpy.ffmpeg.probe import probe_video
 import pytest
 
 import sys
@@ -138,11 +139,17 @@ def test_FaceDetector(request, file):
     max_faces=2, fs=1.0, iou_threshold=0.45, score_threshold=0.9)
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    boxes, info = det(test_video_path)
+    test_video_shape = request.getfixturevalue('test_video_shape')
+    test_video_fps = request.getfixturevalue('test_video_fps')
+    boxes, info = det(inputs=test_video_path,
+                      inputs_shape=test_video_shape,
+                      fps=test_video_fps)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    boxes, info = det(test_video_ndarray, fps=test_video_fps)
+    boxes, info = det(inputs=test_video_ndarray,
+                      inputs_shape=test_video_ndarray.shape,
+                      fps=test_video_fps)
   assert boxes.shape == (360, 1, 4)
   assert info.shape == (360, 1, 5)
   np.testing.assert_allclose(boxes[0,0],
