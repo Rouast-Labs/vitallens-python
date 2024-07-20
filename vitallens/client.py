@@ -45,7 +45,7 @@ class VitalLens:
       method: Method = Method.VITALLENS,
       api_key: str = None,
       detect_faces: bool = True,
-      fdet_max_faces: int = 2,
+      fdet_max_faces: int = 1,
       fdet_fs: float = 1.0,
       fdet_score_threshold: float = 0.9,
       fdet_iou_threshold: float = 0.3
@@ -65,6 +65,7 @@ class VitalLens:
     self.api_key = api_key
     # Load the config and model
     self.config = load_config(method.name.lower() + ".yaml")
+    self.method = method
     if self.config['model'] == 'g':
       self.rppg = GRPPGMethod(self.config)
     elif self.config['model'] == 'chrom':
@@ -151,6 +152,11 @@ class VitalLens:
     """
     # Probe inputs
     inputs_shape, fps = probe_video_inputs(video=video, fps=fps)
+    # TODO: Optimize performance of simple rPPG methods for long videos
+    # Warning if using long video
+    target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
+    if self.method != Method.VITALLENS and inputs_shape[0]/fps*target_fps > 3600:
+      logging.warn("Inference for long videos has yet to be optimized for POS / G / CHROM. This may run out of memory and crash.")
     _, height, width, _ = inputs_shape
     if self.detect_faces:
       # Detect faces
