@@ -2,6 +2,7 @@ import sys
 sys.path.append('../vitallens-python')
 import argparse
 import matplotlib.pyplot as plt
+import os
 import pandas as pd
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
@@ -20,7 +21,7 @@ METHOD_COLORS = {
 
 def run(args=None):
   # Get ground truth vitals
-  vitals = pd.read_csv(args.vitals_path)
+  vitals = pd.read_csv(args.vitals_path) if os.path.exists(args.vitals_path) else []
   ppg_gt = vitals['ppg'] if 'ppg' in vitals else None 
   resp_gt = vitals['resp'] if 'resp' in vitals else None
   # Get video
