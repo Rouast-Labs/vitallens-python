@@ -79,7 +79,8 @@ class VitalLensRPPGMethod(RPPGMethod):
       (faces[:,3] - faces[:,1]) * 0.5 < np.maximum(0, faces[:,1] - roi[1]) + np.maximum(0, faces[:,3] - roi[3]))):
       logging.warn("Large face movement detected")
     # Parse the inputs
-    frames_ds, fps, inputs_shape, ds_factor = parse_video_inputs(
+    logging.debug("Preparing video for inference...")
+    frames_ds, fps, inputs_shape, ds_factor, _ = parse_video_inputs(
       video=frames, fps=fps, target_size=self.input_size, roi=roi,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
       library='prpy', scale_algorithm='bilinear')
@@ -95,6 +96,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       split_len = math.ceil((ds_len + (n_splits-1) * API_OVERLAP) / n_splits)
       start_idxs = [i for i in range(0, ds_len - n_splits * API_OVERLAP, split_len - API_OVERLAP)]
       end_idxs = [min(i + split_len, ds_len) for i in start_idxs]
+      logging.info("Running inference for {} frames using {} requests...".format(ds_len, n_splits))
       # Process the splits in parallel
       with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(lambda i: self.process_api(frames_ds[start_idxs[i]:end_idxs[i]]), range(n_splits)))
@@ -211,8 +213,9 @@ class VitalLensRPPGMethod(RPPGMethod):
         Lambda = detrend_lambda_for_rr_response(fps)
       else:
         raise ValueError("Type {} not implemented!".format(type))
-      # Detrend
-      sig = detrend(sig, Lambda)
+      if sig.shape[-1] < 4 * API_MAX_FRAMES:
+        # Detrend only for shorter videos for performance reasons
+        sig = detrend(sig, Lambda)
       # Moving average
       sig = moving_average(sig, size)
       # Standardize

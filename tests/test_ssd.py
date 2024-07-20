@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import numpy as np
+from prpy.ffmpeg.probe import probe_video
 import pytest
 
 import sys
@@ -79,13 +80,13 @@ def test_enforce_temporal_consistency():
      [[.5,   .5,   .75,  .75 ], [.125, .5, .375, .75]],
      [[.125, .625, .375, .875], [.625, .5, .875, .75]]])
   info = np.array(
-    [[[0, 1, 1, 1, .99], [0, 1, 1, 1, .99]],
-     [[1, 1, 0, 0, .2 ], [1, 1, 1, 1, .99]],
-     [[2, 1, 1, 1, .99], [2, 1, 1, 1, .99]],
-     [[3, 1, 1, 1, .99], [3, 1, 1, 1, .99]],
-     [[4, 1, 1, 1, .99], [4, 1, 1, 1, .99]]])
+    [[[0, 1, 1, .99], [0, 1, 1, .99]],
+     [[1, 1, 0, .2 ], [1, 1, 1, .99]],
+     [[2, 1, 1, .99], [2, 1, 1, .99]],
+     [[3, 1, 1, .99], [3, 1, 1, .99]],
+     [[4, 1, 1, .99], [4, 1, 1, .99]]])
   boxes_out, info_out = enforce_temporal_consistency(
-    boxes=boxes, info=info, inputs_shape=(5, 8, 8, 3))
+    boxes=boxes, info=info, n_frames=5)
   np.testing.assert_equal(
     boxes_out,
       np.array(
@@ -97,11 +98,11 @@ def test_enforce_temporal_consistency():
   np.testing.assert_equal(
     info_out,
       np.array(
-        [[[0, 1, 1, 1, .99], [0, 1, 1, 1, .99]],
-         [[1, 1, 1, 1, .99], [1, 1, 0, 0, .2 ]],
-         [[2, 1, 1, 1, .99], [2, 1, 1, 1, .99]],
-         [[3, 1, 1, 1, .99], [3, 1, 1, 1, .99]],
-         [[4, 1, 1, 1, .99], [4, 1, 1, 1, .99]]]))
+        [[[0, 1, 1, .99], [0, 1, 1, .99]],
+         [[1, 1, 1, .99], [1, 1, 0, .2 ]],
+         [[2, 1, 1, .99], [2, 1, 1, .99]],
+         [[3, 1, 1, .99], [3, 1, 1, .99]],
+         [[4, 1, 1, .99], [4, 1, 1, .99]]]))
   
 def test_interpolate_unscanned_frames():
   # Example with 2 moving faces, 3 time steps, no detection for face 1 in time step 2, faces swapped in time step 4
@@ -110,11 +111,11 @@ def test_interpolate_unscanned_frames():
      [[.25,  .5, .5,   .75], [.125, .25,  .375, .5  ]],
      [[.375, .5, .625, .75], [.125, .375, .375, .625]]])
   info = np.array(
-    [[[0, 1, 1, 1, .99], [0, 1, 1, 1, .99]],
-     [[1, 1, 1, 1, .99], [1, 1, 0, 0, .2 ]],
-     [[2, 1, 1, 1, .99], [2, 1, 1, 1, .99]]])
+    [[[0, 1, 1, .99], [0, 1, 1, .99]],
+     [[2, 1, 1, .99], [2, 1, 0, .2 ]],
+     [[4, 1, 1, .99], [4, 1, 1, .99]]])
   boxes_out, info_out = interpolate_unscanned_frames(
-    boxes=boxes, info=info, scan_every=2, inputs_shape=(5, 8, 8, 3))
+    boxes=boxes, info=info, n_frames=5)
   np.testing.assert_equal(
     boxes_out,
       np.array(
@@ -126,11 +127,11 @@ def test_interpolate_unscanned_frames():
   np.testing.assert_equal(
     info_out,
       np.array(
-        [[[0, 1, 1, 1, .99], [0, 1, 1, 1, .99]],
-         [[1, 0, 0, 1, 0  ], [1, 0, 0, 1, 0  ]], # Imperfection of the implementation
-         [[2, 1, 1, 1, .99], [2, 1, 0, 0, .2 ]],
-         [[3, 0, 0, 1, 0  ], [3, 0, 0, 0, 0  ]],
-         [[4, 1, 1, 1, .99], [4, 1, 1, 1, .99]]]))
+        [[[0, 1, 1, .99], [0, 1, 1, .99]],
+         [[1, 0, 0, 0  ], [1, 0, 0, 0  ]], # Imperfection of the implementation
+         [[2, 1, 1, .99], [2, 1, 0, .2 ]],
+         [[3, 0, 0, 0  ], [3, 0, 0, 0  ]],
+         [[4, 1, 1, .99], [4, 1, 1, .99]]]))
 
 @pytest.mark.parametrize("file", [True, False])
 def test_FaceDetector(request, file):
@@ -138,13 +139,19 @@ def test_FaceDetector(request, file):
     max_faces=2, fs=1.0, iou_threshold=0.45, score_threshold=0.9)
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    boxes, info = det(test_video_path)
+    test_video_shape = request.getfixturevalue('test_video_shape')
+    test_video_fps = request.getfixturevalue('test_video_fps')
+    boxes, info = det(inputs=test_video_path,
+                      inputs_shape=test_video_shape,
+                      fps=test_video_fps)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    boxes, info = det(test_video_ndarray, fps=test_video_fps)
+    boxes, info = det(inputs=test_video_ndarray,
+                      inputs_shape=test_video_ndarray.shape,
+                      fps=test_video_fps)
   assert boxes.shape == (360, 1, 4)
-  assert info.shape == (360, 1, 5)
+  assert info.shape == (360, 1, 4)
   np.testing.assert_allclose(boxes[0,0],
                              [0.32223, 0.118318, 0.572684, 0.696835],
                              atol=0.01)

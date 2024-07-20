@@ -76,7 +76,7 @@ class SimpleRPPGMethod(RPPGMethod):
     u_roi = merge_faces(faces)
     faces = faces - [u_roi[0], u_roi[1], u_roi[0], u_roi[1]]
     # Parse the inputs
-    frames_ds, fps, inputs_shape, ds_factor = parse_video_inputs(
+    frames_ds, fps, inputs_shape, ds_factor, _ = parse_video_inputs(
       video=frames, fps=fps, target_size=None, roi=u_roi,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target)   
     assert inputs_shape[0] == faces.shape[0], "Need same number of frames as face detections"
