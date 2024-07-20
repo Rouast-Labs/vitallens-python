@@ -91,7 +91,8 @@ def parse_video_inputs(
     target_size: Union[int, tuple] = None,
     target_fps: float = None,
     library: str = 'prpy',
-    scale_algorithm: str = 'bilinear'
+    scale_algorithm: str = 'bilinear',
+    trim: tuple = None
   ) -> Tuple[np.ndarray, float, tuple, int]:
   """Parse video inputs into required shape.
 
@@ -103,6 +104,7 @@ def parse_video_inputs(
     target_fps: Optional target framerate
     library: Library to use for resample if video is np.ndarray
     scale_algorithm: Algorithm to use for resample
+    trim: Frame numbers for temporal trimming (start, end) (optional).
   Returns:
     parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
       if target_size provided, h = target_size[0] and w = target_size[1].
@@ -121,7 +123,7 @@ def parse_video_inputs(
         if abs(r) == 90: h = w_; w = h_
         else: h = h_; w = w_
         video, ds_factor = read_video_from_path(
-          path=video, target_fps=target_fps, crop=roi, scale=target_size,
+          path=video, target_fps=target_fps, crop=roi, scale=target_size, trim=trim,
           pix_fmt='rgb24', dim_deltas=(1,1,1), scale_algorithm=scale_algorithm)
         return video, fps, (n, h, w, 3), ds_factor
       except Exception as e:
@@ -136,6 +138,8 @@ def parse_video_inputs(
       if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
       else: ds_factor = max(round(fps / target_fps), 1)
     target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
+    if trim is not None:
+      target_idxs = [idx for idx in target_idxs if trim[0] <= idx < trim[1]]
     if roi is not None or target_size is not None or target_idxs is not None:
       if target_size is None and roi is not None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))
       elif target_size is None: target_size = (video.shape[1], video.shape[2])

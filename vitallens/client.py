@@ -154,7 +154,7 @@ class VitalLens:
     _, height, width, _ = inputs_shape
     if self.detect_faces:
       # Detect faces
-      faces_rel, _ = self.face_detector(inputs=video, fps=fps)
+      faces_rel, _ = self.face_detector(inputs=video, inputs_shape=inputs_shape, fps=fps)
       # If no faces detected: return empty list
       if len(faces_rel) == 0:
         logging.warn("No faces to analyze")

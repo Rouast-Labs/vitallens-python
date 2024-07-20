@@ -20,6 +20,7 @@
 
 import itertools
 import logging
+import math
 import numpy as np
 import os
 from prpy.numpy.signal import interpolate_vals
@@ -34,6 +35,7 @@ else:
 from vitallens.utils import parse_video_inputs
 
 INPUT_SIZE = (240, 320)
+MAX_SCAN_FRAMES = 60
 
 def nms(
     boxes: np.ndarray,
@@ -159,7 +161,7 @@ def interpolate_unscanned_frames(
   Args:
     boxes: Detected boxes in point form [0, 1], shape (n_frames, n_faces, 4)
     info: Detection info: idx, scanned, scan_found_face, interp_valid, confidence. Shape (n_frames, n_faces, 5)
-    scan_every: Scalar indicating that only every xth frame should be scanned
+    scan_every: Scalar indicating that only every xth frame was scanned
     inputs_shape: Shape of the inputs.
   Returns:
     boxes: Processed boxes in point form [0, 1], shape (orig_n_frames, n_faces, 4)
@@ -216,6 +218,7 @@ class FaceDetector:
   def __call__(
       self,
       inputs: Tuple[np.ndarray, str],
+      inputs_shape: Tuple[tuple, float],
       fps: float = None
     ) -> Tuple[np.ndarray, np.ndarray]:
     """Run inference.
@@ -223,20 +226,25 @@ class FaceDetector:
     Args:
       inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
+      inputs_shape: The shape of the input video as (n_frames, h, w, 3)
       fps: Sampling frequency of the input video. Required if type(video) == np.ndarray.
     Returns:
       boxes: Detected face boxes in relative flat point form (n_frames, n_faces, 4)
       info: Tuple (idx, scanned, scan_found_face, interp_valid, confidence) (n_frames, n_faces, 5)
     """
-    # Parse the inputs
-    inputs, fps, inputs_shape, scan_every = parse_video_inputs(
-      video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs,
-      library='prpy', scale_algorithm='bilinear')
-    # Forward pass
-    onnx_inputs = {"args_0": (inputs.astype(np.float32) - 127.0) / 128.0}
-    onnx_outputs = self.model.run(None, onnx_inputs)[0]
-    boxes = onnx_outputs[..., -4:]
-    classes = onnx_outputs[..., 0:2]
+    # Determine number of batches
+    n_frames = inputs_shape[0]
+    n_batches = math.ceil((n_frames / (fps / self.fs)) / MAX_SCAN_FRAMES)
+    if n_batches > 1:
+      logging.info("Running face detection in {} batches.".format(n_batches))
+    # Determine frame offsets for batches
+    offsets_lengths = [(i[0], len(i)) for i in np.array_split(np.arange(n_frames), n_batches)]
+    # Process in batches
+    results = [self.scan_batch(inputs=inputs, batch=i, n_batches=n_batches, start=int(s), end=int(s+l), fps=fps) for i, (s, l) in enumerate(offsets_lengths)]
+    boxes = np.concatenate([r[0] for r in results], axis=0)
+    classes = np.concatenate([r[1] for r in results], axis=0)
+    scan_every = results[0][2]
+    n_frames_scan = boxes.shape[0]
     # Non-max suppression
     idxs, num_valid = nms(boxes=boxes,
                           scores=classes[..., 1],
@@ -252,9 +260,9 @@ class FaceDetector:
       logging.warn("No faces found")
       return [], []
     # Assort info: idx, scanned, scan_found_face, interp_valid, confidence
-    idxs = np.repeat(np.arange(inputs.shape[0], dtype=np.int32)[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
-    scanned = np.ones((inputs.shape[0], max_valid, 1), dtype=np.int32)
-    scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([inputs.shape[0], max_valid, 1], dtype=np.int32), scanned)
+    idxs = np.repeat(np.arange(n_frames_scan, dtype=np.int32)[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
+    scanned = np.ones((n_frames_scan, max_valid, 1), dtype=np.int32)
+    scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([n_frames_scan, max_valid, 1], dtype=np.int32), scanned)
     info = np.r_['2', idxs, scanned, scan_found_face, scan_found_face, classes[...,1:2]]
     # Enforce temporal consistency
     boxes, info = enforce_temporal_consistency(boxes=boxes, info=info, inputs_shape=inputs_shape)
@@ -268,3 +276,40 @@ class FaceDetector:
         boxes, info, scan_every, inputs_shape)
     # Return
     return boxes, info
+  def scan_batch(
+      self,
+      batch: int,
+      n_batches: int,
+      inputs: Tuple[np.ndarray, str],
+      start: int,
+      end: int,
+      fps: float = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+    """Parse video and run inference for one batch.
+
+    Args:
+      batch: The number of this batch.
+      b_batches: The total number of batches.
+      inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+        with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
+      start: The index of first frame of the video to analyze in this batch.
+      end: The index of the last frame of the video to analyze in this batch.
+      fps: Sampling frequency of the input video. Required if type(video) == np.ndarray.
+    Returns:
+      boxes: Scanned boxes in flat point form (n_frames, n_boxes, 4)
+      classes: Detection scores for boxes (n_frames, n_boxes, 2)
+      scan_every: Scalar indicating that only every xth frame was scanned
+    """
+    logging.debug("Batch {}/{}...".format(batch, n_batches))
+    # Parse the inputs
+    inputs, fps, _, scan_every = parse_video_inputs(
+      video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs,
+      library='prpy', scale_algorithm='bilinear', trim=(start, end))
+    # Forward pass
+    onnx_inputs = {"args_0": (inputs.astype(np.float32) - 127.0) / 128.0}
+    onnx_outputs = self.model.run(None, onnx_inputs)[0]
+    boxes = onnx_outputs[..., -4:]
+    classes = onnx_outputs[..., 0:2]
+    # Return
+    return boxes, classes, scan_every
+    
