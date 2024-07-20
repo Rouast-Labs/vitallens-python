@@ -111,6 +111,7 @@ def parse_video_inputs(
     fps_in: Frame rate of original inputs
     shape_in: Shape of original inputs in form (n, h, w, c)
     ds_factor: Temporal downsampling factor applied
+    idxs: The frame indices returned from original video
   """
   # Check if input is array or file name
   if isinstance(video, str):
@@ -125,7 +126,10 @@ def parse_video_inputs(
         video, ds_factor = read_video_from_path(
           path=video, target_fps=target_fps, crop=roi, scale=target_size, trim=trim,
           pix_fmt='rgb24', dim_deltas=(1,1,1), scale_algorithm=scale_algorithm)
-        return video, fps, (n, h, w, 3), ds_factor
+        start_idx = max(0, trim[0]) if trim is not None else 0
+        end_idx = min(n, trim[1]) if trim is not None else n
+        idxs = list(range(start_idx, end_idx, ds_factor))
+        return video, fps, (n, h, w, 3), ds_factor, idxs
       except Exception as e:
         raise ValueError("Problem reading video from {}: {}".format(video, e))
     else:
@@ -146,7 +150,8 @@ def parse_video_inputs(
       video = crop_slice_resize(
         inputs=video, target_size=target_size, roi=roi, target_idxs=target_idxs,
         preserve_aspect_ratio=False, library=library, scale_algorithm=scale_algorithm)
-    return video, fps, video_shape_in, ds_factor
+    if target_idxs is None: target_idxs = list(range(video_shape_in[0]))
+    return video, fps, video_shape_in, ds_factor, target_idxs
   else:
     raise ValueError("Invalid video {}, type {}".format(video, type(video)))
 

@@ -99,21 +99,21 @@ def nms(
 def enforce_temporal_consistency(
     boxes: np.ndarray,
     info: np.ndarray,
-    inputs_shape: tuple
+    n_frames: int
   ) -> Tuple[np.ndarray, np.ndarray]:
   """Enforce temporal consistency by sorting faces along second axis to minimize spatial distances.
   
   Args:
     boxes: Detected boxes in point form [0, 1], shape (n_frames, n_faces, 4)
-    info: Detection info: idx, scanned, scan_found_face, interp_valid, confidence. Shape (n_frames, n_faces, 5)
-    inputs_shape: Shape of the inputs.
+    info: Detection info: idx, scanned, scan_found_face, confidence. Shape (n_frames, n_faces, 4)
+    n_frames: Number of frames in the original input.
   Returns:
     boxes: Processed boxes in point form [0, 1], shape (n_frames, n_faces, 4)
-    info: Processed info: idx, scanned, scan_found_face, interp_valid, confidence. Shape (n_frames, n_faces, 5)
+    info: Processed info: idx, scanned, scan_found_face, confidence. Shape (n_frames, n_faces, 4)
   """
   # Make sure that enough frames are present
-  if inputs_shape[0] == 1:
-    logging.warning("Ignoring enforce_consistency since n_frames=={}".format(inputs_shape[0]))
+  if n_frames == 1:
+    logging.warning("Ignoring enforce_consistency since n_frames=={}".format(n_frames))
     return boxes, info
   # Determine the maximum number of detections in any frame
   max_det_faces = int(np.max(np.sum(info[...,2], axis=-1)))
@@ -145,7 +145,7 @@ def enforce_temporal_consistency(
   boxes = np.take_along_axis(boxes, idxs, axis=1)
   info = np.take_along_axis(info, idxs, axis=1)
   # Sort second axis by total confidence
-  order = np.argsort(np.sum(info[...,4], axis=0))[::-1][np.newaxis]
+  order = np.argsort(np.sum(info[...,3], axis=0))[::-1][np.newaxis]
   boxes = np.squeeze(np.take(boxes, order, axis=1), axis=1)
   info = np.squeeze(np.take(info, order, axis=1), axis=1)
   return boxes, info
@@ -153,28 +153,24 @@ def enforce_temporal_consistency(
 def interpolate_unscanned_frames(
     boxes: np.ndarray,
     info: np.ndarray,
-    scan_every: int,
-    inputs_shape: tuple
+    n_frames: int
   ) -> Tuple[np.ndarray, np.ndarray]:
   """Interpolate values for frames that were not scanned.
 
   Args:
     boxes: Detected boxes in point form [0, 1], shape (n_frames, n_faces, 4)
     info: Detection info: idx, scanned, scan_found_face, interp_valid, confidence. Shape (n_frames, n_faces, 5)
-    scan_every: Scalar indicating that only every xth frame was scanned
-    inputs_shape: Shape of the inputs.
+    n_frames: Number of frames in the original input.
   Returns:
     boxes: Processed boxes in point form [0, 1], shape (orig_n_frames, n_faces, 4)
-    info: Processed info: idx, scanned, scan_found_face, interp_valid, confidence. Shape (orig_n_frames, n_faces, 5)
+    info: Processed info: idx, scanned, scan_found_face, confidence. Shape (orig_n_frames, n_faces, 4)
   """
-  # Transform info to original frame idxs
-  info[:,:,0] *= scan_every
   _, n_faces, _ = info.shape
   # Add rows corresponding to unscanned frames
-  add_idxs = list(set.difference(set(range(inputs_shape[0])), set(info[:,0,0].astype(np.int32).tolist())))
+  add_idxs = list(set.difference(set(range(n_frames)), set(info[:,0,0].astype(np.int32).tolist())))
   idxs = np.repeat(np.asarray(add_idxs)[:,np.newaxis], n_faces, axis=1)[...,np.newaxis]
   # Info
-  add_info = np.r_['2', idxs, np.zeros_like(idxs, np.int32), np.zeros_like(idxs, np.int32), np.zeros_like(idxs, np.int32), np.zeros_like(idxs, np.int32)]
+  add_info = np.r_['2', idxs, np.zeros_like(idxs, np.int32), np.zeros_like(idxs, np.int32), np.zeros_like(idxs, np.int32)]
   info = np.concatenate([info, add_info])
   # Boxes
   add_boxes = np.full([len(add_idxs), n_faces, 4], np.nan)
@@ -185,11 +181,6 @@ def interpolate_unscanned_frames(
   info = np.take(info, sort_idxs, axis=0)
   # Interpolation
   boxes = np.apply_along_axis(interpolate_vals, 0, boxes)
-  # Set interp_valid: 1 if interpolation happened between two valid dets, otherwise 0
-  int_valid = np.reshape(np.tile(np.reshape(info[info[:,:,1]>0][:,2], (-1, n_faces)),(1, scan_every)),(-1, n_faces))
-  if inputs_shape[0] - int_valid.shape[0] < 0:
-    int_valid = int_valid[:(inputs_shape[0]-int_valid.shape[0])]
-  info[:,:,3] = int_valid
   return boxes, info
 
 class FaceDetector:
@@ -243,7 +234,8 @@ class FaceDetector:
     results = [self.scan_batch(inputs=inputs, batch=i, n_batches=n_batches, start=int(s), end=int(s+l), fps=fps) for i, (s, l) in enumerate(offsets_lengths)]
     boxes = np.concatenate([r[0] for r in results], axis=0)
     classes = np.concatenate([r[1] for r in results], axis=0)
-    scan_every = results[0][2]
+    scan_idxs = np.concatenate([r[2] for r in results], axis=0)
+    scan_every = int(np.max(np.diff(scan_idxs)))
     n_frames_scan = boxes.shape[0]
     # Non-max suppression
     idxs, num_valid = nms(boxes=boxes,
@@ -263,17 +255,16 @@ class FaceDetector:
     idxs = np.repeat(np.arange(n_frames_scan, dtype=np.int32)[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
     scanned = np.ones((n_frames_scan, max_valid, 1), dtype=np.int32)
     scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([n_frames_scan, max_valid, 1], dtype=np.int32), scanned)
-    info = np.r_['2', idxs, scanned, scan_found_face, scan_found_face, classes[...,1:2]]
+    info = np.r_['2', scan_idxs[...,np.newaxis,np.newaxis], scanned, scan_found_face, classes[...,1:2]]
     # Enforce temporal consistency
-    boxes, info = enforce_temporal_consistency(boxes=boxes, info=info, inputs_shape=inputs_shape)
+    boxes, info = enforce_temporal_consistency(boxes=boxes, info=info, n_frames=n_frames)
     # Interpolate unscanned frames if necessary
     if scan_every > 1:
       # Set unsuccessful detections to nan
       nan = info[:,:,2] == 0
       boxes[nan] = np.nan
       # Interpolate
-      boxes, info = interpolate_unscanned_frames(
-        boxes, info, scan_every, inputs_shape)
+      boxes, info = interpolate_unscanned_frames(boxes=boxes, info=info, n_frames=n_frames)
     # Return
     return boxes, info
   def scan_batch(
@@ -298,11 +289,11 @@ class FaceDetector:
     Returns:
       boxes: Scanned boxes in flat point form (n_frames, n_boxes, 4)
       classes: Detection scores for boxes (n_frames, n_boxes, 2)
-      scan_every: Scalar indicating that only every xth frame was scanned
+      idxs: Indices of the scanned frames from the original video
     """
     logging.debug("Batch {}/{}...".format(batch, n_batches))
     # Parse the inputs
-    inputs, fps, _, scan_every = parse_video_inputs(
+    inputs, fps, _, _, idxs = parse_video_inputs(
       video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs,
       library='prpy', scale_algorithm='bilinear', trim=(start, end))
     # Forward pass
@@ -311,5 +302,5 @@ class FaceDetector:
     boxes = onnx_outputs[..., -4:]
     classes = onnx_outputs[..., 0:2]
     # Return
-    return boxes, classes, scan_every
+    return boxes, classes, idxs
     

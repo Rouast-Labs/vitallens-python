@@ -79,7 +79,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       (faces[:,3] - faces[:,1]) * 0.5 < np.maximum(0, faces[:,1] - roi[1]) + np.maximum(0, faces[:,3] - roi[3]))):
       logging.warn("Large face movement detected")
     # Parse the inputs
-    frames_ds, fps, inputs_shape, ds_factor = parse_video_inputs(
+    frames_ds, fps, inputs_shape, ds_factor, _ = parse_video_inputs(
       video=frames, fps=fps, target_size=self.input_size, roi=roi,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
       library='prpy', scale_algorithm='bilinear')

@@ -90,12 +90,12 @@ def test_probe_video_inputs_wrong_type():
 def test_parse_video_inputs(request, file, roi, target_size, target_fps):
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    parsed, fps_in, video_shape_in, ds_factor = parse_video_inputs(
+    parsed, fps_in, video_shape_in, ds_factor, idxs = parse_video_inputs(
       test_video_path, roi=roi, target_size=target_size, target_fps=target_fps)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    parsed, fps_in, video_shape_in, ds_factor = parse_video_inputs(
+    parsed, fps_in, video_shape_in, ds_factor, idxs = parse_video_inputs(
       test_video_ndarray, fps=test_video_fps, roi=roi, target_size=target_size,
       target_fps=target_fps)
   assert parsed.shape == (360 if target_fps is None else 360 // 2,
@@ -105,6 +105,7 @@ def test_parse_video_inputs(request, file, roi, target_size, target_fps):
   assert fps_in == 30
   assert video_shape_in == (360, 480, 768, 3)
   assert ds_factor == 1 if target_fps is None else 2
+  assert idxs == list(range(360)) if target_fps is None else list(range(0, 360, 2))
 
 def test_parse_video_inputs_no_file():
   with pytest.raises(Exception):
