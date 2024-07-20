@@ -227,7 +227,7 @@ class FaceDetector:
     n_frames = inputs_shape[0]
     n_batches = math.ceil((n_frames / (fps / self.fs)) / MAX_SCAN_FRAMES)
     if n_batches > 1:
-      logging.info("Running face detection in {} batches.".format(n_batches))
+      logging.info("Running face detection in {} batches...".format(n_batches))
     # Determine frame offsets for batches
     offsets_lengths = [(i[0], len(i)) for i in np.array_split(np.arange(n_frames), n_batches)]
     # Process in batches
@@ -251,11 +251,11 @@ class FaceDetector:
     if max_valid == 0:
       logging.warn("No faces found")
       return [], []
-    # Assort info: idx, scanned, scan_found_face, interp_valid, confidence
-    idxs = np.repeat(np.arange(n_frames_scan, dtype=np.int32)[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
+    # Assort info: idx, scanned, scan_found_face, confidence
+    idxs = np.repeat(scan_idxs[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
     scanned = np.ones((n_frames_scan, max_valid, 1), dtype=np.int32)
     scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([n_frames_scan, max_valid, 1], dtype=np.int32), scanned)
-    info = np.r_['2', scan_idxs[...,np.newaxis,np.newaxis], scanned, scan_found_face, classes[...,1:2]]
+    info = np.r_['2', idxs, scanned, scan_found_face, classes[...,1:2]]
     # Enforce temporal consistency
     boxes, info = enforce_temporal_consistency(boxes=boxes, info=info, n_frames=n_frames)
     # Interpolate unscanned frames if necessary
