@@ -78,7 +78,7 @@ This can also be configured using the following parameters:
 
 The estimation results are returned as a `list`. It contains a `dict` for each distinct face, with the following structure:
 
-```json
+```
 [
   {
     'face': {
@@ -123,7 +123,7 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
 
 If the video is long enough and `estimate_running_vitals=True`, the results additionally contain running vitals:
 
-```json
+```
 [
   {
     ...
