@@ -164,7 +164,7 @@ For example, to reproduce the results from the banner image on the [VitalLens AP
 python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.mp4 --vitals_path=examples/sample_vitals_2.csv --api_key=YOUR_API_KEY
 ```
 
-This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset!
+This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
 
 ### Example: Use VitalLens API to estimate vitals from a video file
 
