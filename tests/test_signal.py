@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2024 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,33 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from dotenv import load_dotenv
-import os
-load_dotenv()
+import numpy as np
+import pytest
 
-SECONDS_PER_MINUTE = 60.0
+import sys
+sys.path.append('../vitallens-python')
 
-# Minima and maxima of derived vitals
-CALC_HR_MIN = 40
-CALC_HR_MAX = 240
-CALC_HR_WINDOW_SIZE = 10
-CALC_RR_MIN = 1
-CALC_RR_MAX = 60
-CALC_RR_WINDOW_SIZE = 20
+from vitallens.signal import windowed_mean, windowed_freq
 
-# API settings
-API_MIN_FRAMES = 16
-API_MAX_FRAMES = 900
-API_OVERLAP = 30
-API_URL = "https://api.rouast.com/vitallens-v2"
-if 'API_URL' in os.environ:
-  API_URL = os.getenv('API_URL')
+def test_windowed_mean():
+  x = np.asarray([0., 1., 2., 3., 4., 5., 6.])
+  y = np.asarray([1., 1., 2., 3., 4., 5., 5.])
+  out_y = windowed_mean(x=x, window_size=3, overlap=1)
+  np.testing.assert_equal(
+    out_y,
+    y)
 
-# Disclaimer message
-DISCLAIMER = "The provided values are estimates and should be interpreted according to the provided confidence levels ranging from 0 to 1. The VitalLens API is not a medical device and its estimates are not intended for any medical purposes."
+@pytest.mark.parametrize("num", [100, 1000])
+@pytest.mark.parametrize("freq", [2.35, 4.89, 13.55])
+@pytest.mark.parametrize("window_size", [10, 20])
+def test_estimate_freq_periodogram(num, freq, window_size):
+  # Test data
+  x = np.linspace(0, freq * 2 * np.pi, num=num)
+  np.random.seed(0)
+  y = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
+  # Check a default use case with axis=-1
+  np.testing.assert_allclose(
+    windowed_freq(x=y, window_size=window_size, overlap=window_size//2, f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
+    np.full((num,), fill_value=freq),
+    rtol=1)
+  

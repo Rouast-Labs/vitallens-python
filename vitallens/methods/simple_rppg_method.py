@@ -105,7 +105,7 @@ class SimpleRPPGMethod(RPPGMethod):
         data[name] = hr
         unit[name] = 'bpm'
         conf[name] = 1.0
-        note[name] = 'Estimate of the heart rate using {} method. This method is not capable of providing a confidence estimate, hence returning 1.'.format(self.model)
+        note[name] = 'Estimate of the global heart rate using {} method. This method is not capable of providing a confidence estimate, hence returning 1.'.format(self.model)
       elif name == 'ppg_waveform':
         data[name] = sig
         unit[name] = 'unitless'

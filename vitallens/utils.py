@@ -232,3 +232,21 @@ def check_faces(
   if not (np.all((faces[...,2] - faces[...,0]) > 0) and np.all((faces[...,3] - faces[...,1]) > 0)):
     raise ValueError("Face detections are invalid, should be in form [x0, y0, x1, y1]")
   return faces
+
+def convert_ndarray_to_list(d: Union[dict, list, np.ndarray]):
+  """Recursively convert any np.ndarray to list in nested object.
+  
+  Args:
+    d: Nested object consisting of list, dict, and np.ndarray
+  Returns:
+    out: The same object with any np.ndarray converted to list
+  """
+  if isinstance(d, np.ndarray):
+    return d.tolist()
+  elif isinstance(d, dict):
+    return {k: convert_ndarray_to_list(v) for k, v in d.items()}
+  elif isinstance(d, list):
+    return [convert_ndarray_to_list(i) for i in d]
+  else:
+    return d
+  

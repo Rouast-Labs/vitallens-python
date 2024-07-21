@@ -55,7 +55,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       faces: np.ndarray,
       fps: float = None,
       override_fps_target: float = None
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
     """Estimate vitals from video frames using the VitalLens API.
 
     Args:
@@ -65,12 +65,15 @@ class VitalLensRPPGMethod(RPPGMethod):
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
     Returns:
-      sig: Estimated pulse signal. Shape (n_sig, n_frames)
-      conf: Estimation confidence. Shape (n_sig, n_frames)
-      live: Liveness estimation. Shape (n_frames,)
+      out_data: The estimated data/value for each signal.
+      out_unit: The estimation unit for each signal.
+      out_conf: The estimation confidence for each signal.
+      out_note: An explanatory note for each signal.
+      live: The face live confidence. Shape (1, n_frames)
     """
     inputs_shape, fps = probe_video_inputs(video=frames, fps=fps)
     # Choose representative face detection
+    # TODO: For longer videos extract chunks from separate locations?
     face = faces[np.argmin(np.linalg.norm(faces - np.median(faces, axis=0), axis=1))]
     roi = get_roi_from_det(
       face, roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
@@ -133,22 +136,22 @@ class VitalLensRPPGMethod(RPPGMethod):
         out_data[name] = hr
         out_unit[name] = 'bpm'
         out_conf[name] = hr_conf
-        out_note[name] = 'Estimate of the heart rate using VitalLens, along with a confidence level between 0 and 1.'
+        out_note[name] = 'Estimate of the global heart rate using VitalLens, along with a confidence level between 0 and 1.'
       elif name == 'respiratory_rate':
         out_data[name] = rr
         out_unit[name] = 'bpm'
         out_conf[name] = rr_conf
-        out_note[name] = 'Estimate of the respiratory rate using VitalLens, along with a confidence level between 0 and 1.'
+        out_note[name] = 'Estimate of the global respiratory rate using VitalLens, along with a confidence level between 0 and 1.'
       elif name == 'ppg_waveform':
         out_data[name] = sig[0]
         out_unit[name] = 'unitless'
         out_conf[name] = conf[0]
-        out_note[name] = 'Estimate of the ppg waveform using VitalLens, along with a frame-wise confidences between 0 and 1.'
+        out_note[name] = 'Estimate of the ppg waveform using VitalLens, along with frame-wise confidences between 0 and 1.'
       elif name == 'respiratory_waveform':
         out_data[name] = sig[1]
         out_unit[name] = 'unitless'
         out_conf[name] = conf[1]
-        out_note[name] = 'Estimate of the respiratory waveform using VitalLens, along with a frame-wise confidences between 0 and 1.'
+        out_note[name] = 'Estimate of the respiratory waveform using VitalLens, along with frame-wise confidences between 0 and 1.'
     return out_data, out_unit, out_conf, out_note, live
   def process_api(
       self,
