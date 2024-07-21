@@ -148,6 +148,24 @@ If the video is long enough and `estimate_running_vitals=True`, the results addi
 ]
 ```
 
+### Example: Compare results with gold-standard labels using our example script
+
+There is an example Python script in `examples/test.py` which lets you run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
+Some options are available:
+
+- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
+- `video_path`: Path to video (Default: `examples/sample_video_1.mp4`)
+- `vitals_path`: Path to gold-standard vitals (Default: `examples/sample_vitals_1.csv`)
+- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+
+For example, to reproduce the results from the banner image on the [VitalLens API Webpage](https://www.rouast.com/api/):
+
+```
+python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.mp4 --vitals_path=examples/sample_vitals_2.csv --api_key=YOUR_API_KEY
+```
+
+This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset!
+
 ### Example: Use VitalLens API to estimate vitals from a video file
 
 ```python
