@@ -249,7 +249,7 @@ class FaceDetector:
     classes = classes[np.arange(classes.shape[0])[:, None], idxs]
     # Check if any faces found
     if max_valid == 0:
-      logging.warn("No faces found")
+      logging.warning("No faces found")
       return [], []
     # Assort info: idx, scanned, scan_found_face, confidence
     idxs = np.repeat(scan_idxs[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]

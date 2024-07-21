@@ -4,6 +4,7 @@ import argparse
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+from prpy.constants import SECONDS_PER_MINUTE
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.helpers import str2bool
@@ -11,6 +12,8 @@ from prpy.numpy.signal import estimate_freq
 import timeit
 from vitallens import VitalLens, Method
 from vitallens.utils import download_file
+from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX
+from vitallens.constants import CALC_RR_MIN, CALC_RR_MAX
 
 COLOR_GT = '#000000'
 METHOD_COLORS = {
@@ -62,10 +65,10 @@ def run(args=None):
     fig, ax1 = plt.subplots(1, figsize=(12, 6))
   fig.suptitle('Vital signs estimated from {} using {} in {:.2f} ms'.format(args.video_path, args.method.name, time_ms))
   if "ppg_waveform" in vital_signs and ppg_gt is not None:
-    hr_gt = estimate_freq(ppg_gt, f_s=fps, f_res=0.005, f_range=(40./60., 240./60.), method='periodogram') * 60.
+    hr_gt = estimate_freq(ppg_gt, f_s=fps, f_res=0.005, f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
     ax1.plot(ppg_gt, color=COLOR_GT, label='PPG Waveform Ground Truth -> HR: {:.1f} bpm'.format(hr_gt))
   if "respiratory_waveform" in vital_signs and resp_gt is not None:
-    rr_gt = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(4./60., 90./60.), method='periodogram') * 60.
+    rr_gt = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
     ax2.plot(resp_gt, color=COLOR_GT, label='Respiratory Waveform Ground Truth -> RR: {:.1f} bpm'.format(rr_gt))
   if "ppg_waveform" in vital_signs:
     ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimate -> HR: {:.1f} bpm ({:.0f}% confidence)'.format(

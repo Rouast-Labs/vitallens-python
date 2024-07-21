@@ -154,7 +154,7 @@ def parse_video_inputs(
     # Downsample / crop / scale if necessary
     ds_factor = 1
     if target_fps is not None:
-      if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+      if target_fps > fps: logging.warning("target_fps should not be greater than fps. Ignoring.")
       else: ds_factor = max(round(fps / target_fps), 1)
     target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
     if trim is not None:

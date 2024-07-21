@@ -24,9 +24,10 @@ import json
 import logging
 import numpy as np
 import os
+from prpy.constants import SECONDS_PER_MINUTE
 from typing import Union
 
-from vitallens.constants import DISCLAIMER, SECONDS_PER_MINUTE
+from vitallens.constants import DISCLAIMER
 from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_HR_WINDOW_SIZE
 from vitallens.constants import CALC_RR_MIN, CALC_RR_MAX, CALC_RR_WINDOW_SIZE
 from vitallens.methods.g import GRPPGMethod
@@ -173,14 +174,14 @@ class VitalLens:
     # Warning if using long video
     target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
     if self.method != Method.VITALLENS and inputs_shape[0]/fps*target_fps > 3600:
-      logging.warn("Inference for long videos has yet to be optimized for POS / G / CHROM. This may run out of memory and crash.")
+      logging.warning("Inference for long videos has yet to be optimized for POS / G / CHROM. This may run out of memory and crash.")
     _, height, width, _ = inputs_shape
     if self.detect_faces:
       # Detect faces
       faces_rel, _ = self.face_detector(inputs=video, inputs_shape=inputs_shape, fps=fps)
       # If no faces detected: return empty list
       if len(faces_rel) == 0:
-        logging.warn("No faces to analyze")
+        logging.warning("No faces to analyze")
         return []
       # Convert to absolute units
       faces = (faces_rel * [width, height, width, height]).astype(np.int64)
@@ -240,7 +241,7 @@ class VitalLens:
               'note': 'Estimate of the running respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
         except ValueError as e:
-          logging.warn("Issue while computing running vitals: {}".format(e))
+          logging.warning("Issue while computing running vitals: {}".format(e))
       face_result['vital_signs'] = vital_signs_results
       face_result['message'] = DISCLAIMER
       results.append(face_result)

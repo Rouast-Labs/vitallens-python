@@ -22,6 +22,7 @@ import base64
 import concurrent.futures
 import math
 import numpy as np
+from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.signal import detrend, moving_average, standardize
 from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
@@ -31,7 +32,7 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
-from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
+from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
@@ -190,7 +191,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     if np.any(np.logical_or(
       (faces[:,2] - faces[:,0]) * 0.5 < np.maximum(0, faces[:,0] - roi[0]) + np.maximum(0, faces[:,2] - roi[2]),
       (faces[:,3] - faces[:,1]) * 0.5 < np.maximum(0, faces[:,1] - roi[1]) + np.maximum(0, faces[:,3] - roi[3]))):
-      logging.warn("Large face movement detected")
+      logging.warning("Large face movement detected")
     # Parse the inputs
     frames_ds, fps, inputs_shape, _, idxs = parse_video_inputs(
       video=inputs, fps=fps, target_size=self.input_size, roi=roi, target_fps=fps_target,

@@ -24,7 +24,7 @@ from prpy.numpy.signal import moving_average_size_for_response, estimate_freq
 from prpy.numpy.stride_tricks import window_view, resolve_1d_window_view
 from typing import Tuple, Union
 
-from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MAX, CALC_RR_MAX
+from vitallens.constants import CALC_HR_MAX, CALC_RR_MAX
 
 def moving_average_size_for_hr_response(
     f_s: Union[float, int]

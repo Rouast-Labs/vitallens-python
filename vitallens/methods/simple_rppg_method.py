@@ -20,12 +20,13 @@
 
 import abc
 import numpy as np
+from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi
 from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
 from typing import Union, Tuple
 
-from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MIN, CALC_HR_MAX
+from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.utils import parse_video_inputs, merge_faces
 
