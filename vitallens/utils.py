@@ -26,6 +26,7 @@ from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.numpy.image import crop_slice_resize
 from typing import Union, Tuple
+import urllib.request
 import yaml
 
 from vitallens.constants import API_MIN_FRAMES
@@ -41,6 +42,20 @@ def load_config(filename: str) -> dict:
   with importlib.resources.open_binary('vitallens.configs', filename) as f:
     loaded = yaml.load(f, Loader=yaml.Loader)
   return loaded
+
+def download_file(url: str, dest: str):
+  """Download a file if necessary.
+
+  Args:
+    url: The url to download the file from
+    dest: The path to write the downloaded file to
+  """
+  if not os.path.exists(dest):
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    logging.info("Downloading {} to {}".format(url, dest))
+    urllib.request.urlretrieve(url, dest)
+  else:
+    logging.info("{} already exists, skipping download.".format(dest))
 
 def probe_video_inputs(
     video: Union[np.ndarray, str],

@@ -3,6 +3,8 @@ recursive-include vitallens/configs *
 recursive-include vitallens/methods *
 recursive-include vitallens/models *
 recursive-include tests *
+exclude examples/*.mp4
+exclude examples/*.csv
 global-exclude .DS_Store
 prune **/__pycache__ 
 prune .github/workflows

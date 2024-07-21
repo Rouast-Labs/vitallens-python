@@ -10,6 +10,7 @@ from prpy.helpers import str2bool
 from prpy.numpy.signal import estimate_freq
 import timeit
 from vitallens import VitalLens, Method
+from vitallens.utils import download_file
 
 COLOR_GT = '#000000'
 METHOD_COLORS = {
@@ -18,8 +19,21 @@ METHOD_COLORS = {
   Method.CHROM: '#4ceaff',
   Method.POS: '#23b031'
 }
+SAMPLE_VIDEO_URLS = {
+  'examples/sample_video_1.mp4': 'https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_video_1.mp4',
+  'examples/sample_video_2.mp4': 'https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_video_2.mp4',
+}
+SAMPLE_VITALS_URLS = {
+  'examples/sample_vitals_1.csv': 'https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_vitals_1.csv',
+  'examples/sample_vitals_2.csv': 'https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_vitals_2.csv',
+}
 
 def run(args=None):
+  # Download sample data if necessary
+  if args.video_path in SAMPLE_VIDEO_URLS.keys() and not os.path.exists(args.video_path):
+    download_file(url=SAMPLE_VIDEO_URLS[args.video_path], dest=args.video_path)
+  if args.vitals_path in SAMPLE_VITALS_URLS.keys() and not os.path.exists(args.vitals_path):
+    download_file(url=SAMPLE_VITALS_URLS[args.vitals_path], dest=args.vitals_path)
   # Get ground truth vitals
   vitals = pd.read_csv(args.vitals_path) if os.path.exists(args.vitals_path) else []
   ppg_gt = vitals['ppg'] if 'ppg' in vitals else None 
