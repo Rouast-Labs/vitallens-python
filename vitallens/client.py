@@ -213,7 +213,7 @@ class VitalLens:
       if self.estimate_running_vitals:
         try:
           if 'ppg_waveform' in self.config['signals']:
-            window_size = int(CALC_HR_WINDOW_SIZE*SECONDS_PER_MINUTE)
+            window_size = int(CALC_HR_WINDOW_SIZE*fps)
             running_hr = windowed_freq(
               x=data['ppg_waveform'], f_s=fps, f_res=0.005,
               f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),            
@@ -227,7 +227,7 @@ class VitalLens:
               'note': 'Estimate of the running heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
           if 'respiratory_waveform' in self.config['signals']:
-            window_size = int(CALC_RR_WINDOW_SIZE*SECONDS_PER_MINUTE)
+            window_size = int(CALC_RR_WINDOW_SIZE*fps)
             running_rr = windowed_freq(
               x=data['respiratory_waveform'], f_s=fps, f_res=0.005,
               f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),            
