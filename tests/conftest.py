@@ -28,8 +28,13 @@ import sys
 sys.path.append('../vitallens-python')
 
 from vitallens.ssd import FaceDetector
+from vitallens.utils import download_file
 
+TEST_VIDEO_URL = "https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_video_2.mp4"
 TEST_VIDEO_PATH = "examples/sample_video_2.mp4"
+
+# Download the test video before running any tests
+download_file(TEST_VIDEO_URL, TEST_VIDEO_PATH)
 
 @pytest.fixture(scope='session')
 def test_video_path():

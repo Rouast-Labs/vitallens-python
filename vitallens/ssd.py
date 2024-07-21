@@ -249,7 +249,7 @@ class FaceDetector:
     classes = classes[np.arange(classes.shape[0])[:, None], idxs]
     # Check if any faces found
     if max_valid == 0:
-      logging.warn("No faces found")
+      logging.warning("No faces found")
       return [], []
     # Assort info: idx, scanned, scan_found_face, confidence
     idxs = np.repeat(scan_idxs[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
@@ -280,7 +280,7 @@ class FaceDetector:
 
     Args:
       batch: The number of this batch.
-      b_batches: The total number of batches.
+      n_batches: The total number of batches.
       inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
       start: The index of first frame of the video to analyze in this batch.

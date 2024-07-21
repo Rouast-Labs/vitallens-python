@@ -54,23 +54,27 @@ pip install ./vitallens-python
 To start using `vitallens-python`, first create an instance of `vitallens.VitalLens`. 
 It can be configured using the following parameters:
 
-| Parameter      | Description                                                                        | Default            |
-|----------------|------------------------------------------------------------------------------------|--------------------|
-| method         | Inference method. {`Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`} | `Method.VITALLENS` |
-| api_key        | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
-| detect_faces   | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
-| fdet_max_faces | The maximum number of faces to detect (if necessary).                              | `2`                |
-| fdet_fs        | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
+| Parameter               | Description                                                                        | Default            |
+|-------------------------|------------------------------------------------------------------------------------|--------------------|
+| method                  | Inference method. {`Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`} | `Method.VITALLENS` |
+| api_key                 | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
+| detect_faces            | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
+| estimate_running_vitals | Set `True` to compute running vitals (e.g., `running_heart_rate`).                 | `True`             |
+| fdet_max_faces          | The maximum number of faces to detect (if necessary).                              | `1`                |
+| fdet_fs                 | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
+| export_to_json          | If `True`, write results to a json file.                                           | `True`             |
+| export_dir              | The directory to which json files are written.                                     | `.`                |
 
 Once instantiated, `vitallens.VitalLens` can be called to estimate vitals.
 This can also be configured using the following parameters:
 
 | Parameter           | Description                                                                           | Default |
 |---------------------|---------------------------------------------------------------------------------------|---------|
-| video               | The video to analyze. Either a path to a video file or `np.ndarray`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/ddcf48f29a2765fd98a7029c0f10075a33e44247/vitallens/client.py#L98)    |         |
-| faces               | Face detections. Ignored unless `detect_faces=False`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/blob/ddcf48f29a2765fd98a7029c0f10075a33e44247/vitallens/client.py#L101) | `None`  |
+| video               | The video to analyze. Either a path to a video file or `np.ndarray`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/raw/main/vitallens/client.py#L114)    |         |
+| faces               | Face detections. Ignored unless `detect_faces=False`. [More info here.](https://github.com/Rouast-Labs/vitallens-python/raw/main/vitallens/client.py#L117) | `None`  |
 | fps                 | Sampling frequency of the input video. Required if video is `np.ndarray`.             | `None`  |
 | override_fps_target | Target frequency for inference (optional - use methods's default otherwise).          | `None`  |
+| export_filename     | Filename for json export if applicable.                                               | `None`  |
 
 The estimation results are returned as a `list`. It contains a `dict` for each distinct face, with the following structure:
 
@@ -84,13 +88,13 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
     },
     'vital_signs': {
       'heart_rate': {
-          'value': <Estimated value as float scalar>,
-          'unit': <Value unit>,
-          'confidence': <Estimation confidence as float scalar>,
-          'note': <Explanatory note>
-        },
+        'value': <Estimated global value as float scalar>,
+        'unit': <Value unit>,
+        'confidence': <Estimation confidence as float scalar>,
+        'note': <Explanatory note>
+      },
       'respiratory_rate': {
-        'value': <Estimated value as float scalar>,
+        'value': <Estimated global value as float scalar>,
         'unit': <Value unit>,
         'confidence': <Estimation confidence as float scalar>,
         'note': <Explanatory note>
@@ -116,6 +120,51 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
   ...
   ]
 ```
+
+If the video is long enough and `estimate_running_vitals=True`, the results additionally contain running vitals:
+
+```
+[
+  {
+    ...
+    'vital_signs': {
+      ...
+      'running_heart_rate': {
+        'data': <Estimated value for each frame as np.ndarray of shape (n_frames,)>,
+        'unit': <Value unit>,
+        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+        'note': <Explanatory note>
+      },
+      'running_respiratory_rate': {
+        'data': <Estimated value for each frame as np.ndarray of shape (n_frames,)>,
+        'unit': <Value unit>,
+        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
+        'note': <Explanatory note>
+      }
+    }
+  ...
+  },
+  ...
+]
+```
+
+### Example: Compare results with gold-standard labels using our example script
+
+There is an example Python script in `examples/test.py` which lets you run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
+Some options are available:
+
+- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
+- `video_path`: Path to video (Default: `examples/sample_video_1.mp4`)
+- `vitals_path`: Path to gold-standard vitals (Default: `examples/sample_vitals_1.csv`)
+- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+
+For example, to reproduce the results from the banner image on the [VitalLens API Webpage](https://www.rouast.com/api/):
+
+```
+python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.mp4 --vitals_path=examples/sample_vitals_2.csv --api_key=YOUR_API_KEY
+```
+
+This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
 
 ### Example: Use VitalLens API to estimate vitals from a video file
 

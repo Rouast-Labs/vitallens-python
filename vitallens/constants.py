@@ -22,13 +22,13 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-SECONDS_PER_MINUTE = 60.0
-
 # Minima and maxima of derived vitals
 CALC_HR_MIN = 40
 CALC_HR_MAX = 240
-CALC_RR_MIN = 1
+CALC_HR_WINDOW_SIZE = 10
+CALC_RR_MIN = 4
 CALC_RR_MAX = 60
+CALC_RR_WINDOW_SIZE = 30
 
 # API settings
 API_MIN_FRAMES = 16

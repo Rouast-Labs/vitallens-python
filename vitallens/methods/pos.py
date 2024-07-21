@@ -51,7 +51,7 @@ class POSRPPGMethod(SimpleRPPGMethod):
     overlap = self.est_window_overlap
     # Check that enough frames are available
     if window_length > rgb.shape[0]:
-      logging.warn("Too few frames available for POS method. Forcing shorter window.")
+      logging.warning("Too few frames available for POS method. Forcing shorter window.")
       window_length = rgb.shape[0] - rgb.shape[0] % 2
       overlap = window_length - 1
     # Create window view into rgb

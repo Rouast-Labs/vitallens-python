@@ -26,6 +26,7 @@ from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.numpy.image import crop_slice_resize
 from typing import Union, Tuple
+import urllib.request
 import yaml
 
 from vitallens.constants import API_MIN_FRAMES
@@ -41,6 +42,20 @@ def load_config(filename: str) -> dict:
   with importlib.resources.open_binary('vitallens.configs', filename) as f:
     loaded = yaml.load(f, Loader=yaml.Loader)
   return loaded
+
+def download_file(url: str, dest: str):
+  """Download a file if necessary.
+
+  Args:
+    url: The url to download the file from
+    dest: The path to write the downloaded file to
+  """
+  if not os.path.exists(dest):
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    logging.info("Downloading {} to {}".format(url, dest))
+    urllib.request.urlretrieve(url, dest)
+  else:
+    logging.info("{} already exists, skipping download.".format(dest))
 
 def probe_video_inputs(
     video: Union[np.ndarray, str],
@@ -139,10 +154,11 @@ def parse_video_inputs(
     # Downsample / crop / scale if necessary
     ds_factor = 1
     if target_fps is not None:
-      if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+      if target_fps > fps: logging.warning("target_fps should not be greater than fps. Ignoring.")
       else: ds_factor = max(round(fps / target_fps), 1)
     target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
     if trim is not None:
+      if target_idxs is None: target_idxs = range(video_shape_in[0])
       target_idxs = [idx for idx in target_idxs if trim[0] <= idx < trim[1]]
     if roi is not None or target_size is not None or target_idxs is not None:
       if target_size is None and roi is not None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))
@@ -217,3 +233,21 @@ def check_faces(
   if not (np.all((faces[...,2] - faces[...,0]) > 0) and np.all((faces[...,3] - faces[...,1]) > 0)):
     raise ValueError("Face detections are invalid, should be in form [x0, y0, x1, y1]")
   return faces
+
+def convert_ndarray_to_list(d: Union[dict, list, np.ndarray]):
+  """Recursively convert any np.ndarray to list in nested object.
+  
+  Args:
+    d: Nested object consisting of list, dict, and np.ndarray
+  Returns:
+    out: The same object with any np.ndarray converted to list
+  """
+  if isinstance(d, np.ndarray):
+    return d.tolist()
+  elif isinstance(d, dict):
+    return {k: convert_ndarray_to_list(v) for k, v in d.items()}
+  elif isinstance(d, list):
+    return [convert_ndarray_to_list(i) for i in d]
+  else:
+    return d
+  

@@ -22,6 +22,7 @@ import base64
 import concurrent.futures
 import math
 import numpy as np
+from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.signal import detrend, moving_average, standardize
 from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
@@ -31,11 +32,12 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
-from vitallens.constants import SECONDS_PER_MINUTE, CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
+from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
+from vitallens.signal import reassemble_from_windows
 from vitallens.utils import probe_video_inputs, parse_video_inputs
 
 class VitalLensRPPGMethod(RPPGMethod):
@@ -55,7 +57,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       faces: np.ndarray,
       fps: float = None,
       override_fps_target: float = None
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
     """Estimate vitals from video frames using the VitalLens API.
 
     Args:
@@ -65,53 +67,50 @@ class VitalLensRPPGMethod(RPPGMethod):
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
     Returns:
-      sig: Estimated pulse signal. Shape (n_sig, n_frames)
-      conf: Estimation confidence. Shape (n_sig, n_frames)
-      live: Liveness estimation. Shape (n_frames,)
+      out_data: The estimated data/value for each signal.
+      out_unit: The estimation unit for each signal.
+      out_conf: The estimation confidence for each signal.
+      out_note: An explanatory note for each signal.
+      live: The face live confidence. Shape (1, n_frames)
     """
     inputs_shape, fps = probe_video_inputs(video=frames, fps=fps)
-    # Choose representative face detection
-    face = faces[np.argmin(np.linalg.norm(faces - np.median(faces, axis=0), axis=1))]
-    roi = get_roi_from_det(
-      face, roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
-    if np.any(np.logical_or(
-      (faces[:,2] - faces[:,0]) * 0.5 < np.maximum(0, faces[:,0] - roi[0]) + np.maximum(0, faces[:,2] - roi[2]),
-      (faces[:,3] - faces[:,1]) * 0.5 < np.maximum(0, faces[:,1] - roi[1]) + np.maximum(0, faces[:,3] - roi[3]))):
-      logging.warn("Large face movement detected")
-    # Parse the inputs
-    logging.debug("Preparing video for inference...")
-    frames_ds, fps, inputs_shape, ds_factor, _ = parse_video_inputs(
-      video=frames, fps=fps, target_size=self.input_size, roi=roi,
-      target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
-      library='prpy', scale_algorithm='bilinear')
     # Check the number of frames to be processed
-    ds_len = frames_ds.shape[0]
-    if ds_len <= API_MAX_FRAMES:
+    inputs_n = inputs_shape[0]
+    fps_target = override_fps_target if override_fps_target is not None else self.fps_target
+    expected_ds_factor = round(fps / fps_target)
+    expected_ds_n = math.ceil(inputs_n / expected_ds_factor)
+    if expected_ds_n <= API_MAX_FRAMES:
       # API supports up to MAX_FRAMES at once - process all frames
-      sig_ds, conf_ds, live_ds = self.process_api(frames_ds)
+      sig_ds, conf_ds, live_ds, idxs = self.process_api_batch(
+        batch=1, n_batches=1, inputs=frames, inputs_shape=inputs_shape,
+        faces=faces, fps_target=fps_target, fps=fps)
     else:
       # Longer videos are split up with small overlaps
-      ds_len = frames_ds.shape[0]
-      n_splits = math.ceil((ds_len - API_MAX_FRAMES) / (API_MAX_FRAMES - API_OVERLAP)) + 1
-      split_len = math.ceil((ds_len + (n_splits-1) * API_OVERLAP) / n_splits)
-      start_idxs = [i for i in range(0, ds_len - n_splits * API_OVERLAP, split_len - API_OVERLAP)]
-      end_idxs = [min(i + split_len, ds_len) for i in start_idxs]
-      logging.info("Running inference for {} frames using {} requests...".format(ds_len, n_splits))
+      n_splits = math.ceil((expected_ds_n - API_MAX_FRAMES) / (API_MAX_FRAMES - API_OVERLAP)) + 1
+      split_len = math.ceil((inputs_n + (n_splits-1) * API_OVERLAP * expected_ds_factor) / n_splits)
+      # start_idxs = [i for i in range(0, expected_ds_len - n_splits * API_OVERLAP, split_len - API_OVERLAP)]
+      start_idxs = [i * (split_len - API_OVERLAP * expected_ds_factor) for i in range(n_splits)]      
+      end_idxs = [min(start + split_len, inputs_n) for start in start_idxs]
+      start_idxs = [max(0, end - split_len) for end in end_idxs]
+      logging.info("Running inference for {} frames using {} requests...".format(expected_ds_n, n_splits))
       # Process the splits in parallel
       with concurrent.futures.ThreadPoolExecutor() as executor:
-        results = list(executor.map(lambda i: self.process_api(frames_ds[start_idxs[i]:end_idxs[i]]), range(n_splits)))
+        results = list(executor.map(lambda i: self.process_api_batch(
+          batch=i, n_batches=n_splits, inputs=frames, inputs_shape=inputs_shape,
+          faces=faces, fps_target=fps_target, start=start_idxs[i], end=end_idxs[i],
+          fps=fps), range(n_splits)))
       # Aggregate the results
-      sig_results, conf_results, live_results = zip(*results)
-      sig_ds = np.concatenate([sig_results[0]] + [[x[API_OVERLAP:] for x in e] for e in sig_results[1:]], axis=-1)
-      conf_ds = np.concatenate([conf_results[0]] + [[x[API_OVERLAP:] for x in e] for e in conf_results[1:]], axis=-1)
-      live_ds = np.concatenate([live_results[0]] + [x[API_OVERLAP:] for x in live_results[1:]], axis=-1)      
+      sig_results, conf_results, live_results, idxs_results = zip(*results)
+      sig_ds, idxs = reassemble_from_windows(x=sig_results, idxs=idxs_results)
+      conf_ds, _ = reassemble_from_windows(x=conf_results, idxs=idxs_results)
+      live_ds = reassemble_from_windows(x=np.asarray(live_results)[:,np.newaxis], idxs=idxs_results)[0][0]
     # Interpolate to original sampling rate (n_frames,)
     sig = interpolate_cubic_spline(
-      x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
+      x=idxs, y=sig_ds, xs=np.arange(inputs_n), axis=1)
     conf = interpolate_cubic_spline(
-      x=np.arange(inputs_shape[0])[0::ds_factor], y=conf_ds, xs=np.arange(inputs_shape[0]), axis=1)
+      x=idxs, y=conf_ds, xs=np.arange(inputs_n), axis=1)
     live = interpolate_cubic_spline(
-      x=np.arange(inputs_shape[0])[0::ds_factor], y=live_ds, xs=np.arange(inputs_shape[0]), axis=0)
+      x=idxs, y=live_ds, xs=np.arange(inputs_n), axis=0)
     # Filter (n_frames,)
     sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
     # Estimate summary vitals
@@ -133,40 +132,75 @@ class VitalLensRPPGMethod(RPPGMethod):
         out_data[name] = hr
         out_unit[name] = 'bpm'
         out_conf[name] = hr_conf
-        out_note[name] = 'Estimate of the heart rate using VitalLens, along with a confidence level between 0 and 1.'
+        out_note[name] = 'Estimate of the global heart rate using VitalLens, along with a confidence level between 0 and 1.'
       elif name == 'respiratory_rate':
         out_data[name] = rr
         out_unit[name] = 'bpm'
         out_conf[name] = rr_conf
-        out_note[name] = 'Estimate of the respiratory rate using VitalLens, along with a confidence level between 0 and 1.'
+        out_note[name] = 'Estimate of the global respiratory rate using VitalLens, along with a confidence level between 0 and 1.'
       elif name == 'ppg_waveform':
         out_data[name] = sig[0]
         out_unit[name] = 'unitless'
         out_conf[name] = conf[0]
-        out_note[name] = 'Estimate of the ppg waveform using VitalLens, along with a frame-wise confidences between 0 and 1.'
+        out_note[name] = 'Estimate of the ppg waveform using VitalLens, along with frame-wise confidences between 0 and 1.'
       elif name == 'respiratory_waveform':
         out_data[name] = sig[1]
         out_unit[name] = 'unitless'
         out_conf[name] = conf[1]
-        out_note[name] = 'Estimate of the respiratory waveform using VitalLens, along with a frame-wise confidences between 0 and 1.'
+        out_note[name] = 'Estimate of the respiratory waveform using VitalLens, along with frame-wise confidences between 0 and 1.'
     return out_data, out_unit, out_conf, out_note, live
-  def process_api(
+  def process_api_batch(
       self,
-      frames: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Process frames with the VitalLens API.
+      batch: int,
+      n_batches: int,
+      inputs: Tuple[np.ndarray, str],
+      inputs_shape: tuple,
+      faces: np.ndarray,
+      fps_target: float,
+      start: int = None,
+      end: int = None,
+      fps: float = None
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Process a batch of frames with the VitalLens API.
 
     Args:
-      frames: The video frames. Shape (n_frames<=MAX_FRAMES, h==input_size, w==input_size, 3)
+      batch: The number of this batch.
+      n_batches: The total number of batches.
+      inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+        with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
+      inputs_shape: The shape of the inputs.
+      faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
+      fps_target: The target frame rate at which to run inference.
+      start: The index of first frame of the video to analyze in this batch.
+      end: The index of the last frame of the video to analyze in this batch.
+      fps: The frame rate of the input video. Required if type(video) == np.ndarray
     Returns:
       sig: Estimated signals. Shape (n_sig, n_frames)
       conf: Estimation confidences. Shape (n_sig, n_frames)
       live: Liveness estimation. Shape (n_frames,)
+      idxs: Indices in inputs that were processed. Shape (n_frames)
     """
-    assert frames.shape[0] <= API_MAX_FRAMES
+    logging.debug("Batch {}/{}...".format(batch, n_batches))
+    # Trim face detections to batch if necessary
+    if start is not None and end is not None:
+      faces = faces[start:end]
+    # Choose representative face detection
+    face = faces[np.argmin(np.linalg.norm(faces - np.median(faces, axis=0), axis=1))]
+    roi = get_roi_from_det(
+      face, roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
+    if np.any(np.logical_or(
+      (faces[:,2] - faces[:,0]) * 0.5 < np.maximum(0, faces[:,0] - roi[0]) + np.maximum(0, faces[:,2] - roi[2]),
+      (faces[:,3] - faces[:,1]) * 0.5 < np.maximum(0, faces[:,1] - roi[1]) + np.maximum(0, faces[:,3] - roi[3]))):
+      logging.warning("Large face movement detected")
+    # Parse the inputs
+    frames_ds, fps, inputs_shape, _, idxs = parse_video_inputs(
+      video=inputs, fps=fps, target_size=self.input_size, roi=roi, target_fps=fps_target,
+      trim=(start, end) if start is not None and end is not None else None,
+      library='prpy', scale_algorithm='bilinear')
+    assert frames_ds.shape[0] <= API_MAX_FRAMES
     # Prepare API header and payload
     headers = {"x-api-key": self.api_key}
-    payload = {"video": base64.b64encode(frames.tobytes()).decode('utf-8')}
+    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8')}
     # Ask API to process video
     response = requests.post(API_URL, headers=headers, json=payload)
     response_body = json.loads(response.text)
@@ -191,7 +225,8 @@ class VitalLensRPPGMethod(RPPGMethod):
       np.asarray(response_body["vital_signs"]["respiratory_waveform"]["confidence"]),
     ], axis=0)
     live_ds = np.asarray(response_body["face"]["confidence"])
-    return sig_ds, conf_ds, live_ds
+    idxs = np.asarray(idxs)
+    return sig_ds, conf_ds, live_ds, idxs
   def postprocess(self, sig, fps, type='ppg', filter=True):
     """Apply filters to the estimated signal. 
     Args:
