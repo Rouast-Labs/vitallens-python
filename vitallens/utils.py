@@ -158,6 +158,7 @@ def parse_video_inputs(
       else: ds_factor = max(round(fps / target_fps), 1)
     target_idxs = None if ds_factor == 1 else list(range(video.shape[0])[0::ds_factor])
     if trim is not None:
+      if target_idxs is None: target_idxs = range(video_shape_in[0])
       target_idxs = [idx for idx in target_idxs if trim[0] <= idx < trim[1]]
     if roi is not None or target_size is not None or target_idxs is not None:
       if target_size is None and roi is not None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))

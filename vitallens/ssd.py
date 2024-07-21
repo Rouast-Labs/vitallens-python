@@ -280,7 +280,7 @@ class FaceDetector:
 
     Args:
       batch: The number of this batch.
-      b_batches: The total number of batches.
+      n_batches: The total number of batches.
       inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
       start: The index of first frame of the video to analyze in this batch.

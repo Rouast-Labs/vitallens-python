@@ -24,7 +24,7 @@ import pytest
 import sys
 sys.path.append('../vitallens-python')
 
-from vitallens.signal import windowed_mean, windowed_freq
+from vitallens.signal import windowed_mean, windowed_freq, reassemble_from_windows
 
 def test_windowed_mean():
   x = np.asarray([0., 1., 2., 3., 4., 5., 6.])
@@ -47,4 +47,17 @@ def test_estimate_freq_periodogram(num, freq, window_size):
     windowed_freq(x=y, window_size=window_size, overlap=window_size//2, f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
     np.full((num,), fill_value=freq),
     rtol=1)
+  
+def test_reassemble_from_windows():
+  x = np.array([[[2.0, 4.0, 6.0, 8.0, 10.0], [7.0, 1.0, 10.0, 12.0, 18.0]],
+                [[2.0, 3.0, 4.0, 5.0, 6.0], [7.0, 8.0, 9.0, 10.0, 11.0]]], dtype=np.float32).transpose(1, 0, 2)
+  idxs = np.array([[1, 3, 5, 7, 9], [5, 6, 9, 11, 13]], dtype=np.int64)
+  out_x, out_idxs = reassemble_from_windows(x=x, idxs=idxs)
+  np.testing.assert_equal(
+    out_x,
+    np.asarray([[2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 18.0],
+                [2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 11.0]]))
+  np.testing.assert_equal(
+    out_idxs,
+    np.asarray([1, 3, 5, 7, 9, 11, 13]))
   

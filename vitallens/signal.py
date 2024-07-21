@@ -122,3 +122,32 @@ def windowed_freq(
     freq_vals.shape[0], n)
   # Return
   return freq_vals
+
+def reassemble_from_windows(
+    x: np.ndarray,
+    idxs: np.ndarray
+  ) -> np.ndarray:
+  """Reassemble windowed data using corresponding idxs.
+
+  Args:
+    x: Data generated using a windowing operation. Shape (n_windows, n, window_size)
+    idxs: Indices of x in the original 1-d array. Shape (n_windows, window_size)
+  
+  Returns:
+    out: Reassembled data. Shape (n, n_idxs)
+    idxs: Reassembled idxs. Shape (n_idxs)
+  """
+  x = np.asarray(x)
+  idxs = np.asarray(idxs)
+  # Transpose x (n, n_windows, window_size)
+  x = np.transpose(x, (1, 0, 2))
+  # Adjust indices based on their window position
+  offset_idxs = idxs - np.arange(idxs.shape[0])[:, np.newaxis]
+  # Find strictly increasing indices using np.maximum.accumulate
+  flat_offset_idxs = offset_idxs.flatten()
+  max_so_far = np.maximum.accumulate(flat_offset_idxs.flatten())
+  mask = (flat_offset_idxs == max_so_far)  # Mask to keep only strictly increasing indices
+  # Filter data based on mask and extract the final result values
+  result = x.reshape(x.shape[0], -1)[:,mask]
+  idxs = idxs.flatten()[mask]
+  return result, idxs
