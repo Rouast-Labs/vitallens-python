@@ -89,7 +89,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     global_face = faces[np.argmin(np.linalg.norm(faces - np.median(faces, axis=0), axis=1))]
     global_roi = get_roi_from_det(
       global_face, roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
-    global_faces_in_roi = check_faces_in_roi(faces=faces, roi=global_roi)
+    global_faces_in_roi = check_faces_in_roi(faces=faces, roi=global_roi, percentage_required_inside_roi=(0.6, 1.0))
     global_parse = isinstance(frames, str) and video_fits_in_memory and (video_issues or global_faces_in_roi)
     if override_global_parse is not None: global_parse = override_global_parse
     if global_parse:
