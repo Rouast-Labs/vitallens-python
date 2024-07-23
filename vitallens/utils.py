@@ -246,6 +246,31 @@ def check_faces(
     raise ValueError("Face detections are invalid, should be in form [x0, y0, x1, y1]")
   return faces
 
+def check_faces_in_roi(
+    faces: np.ndarray,
+    roi: np.ndarray,
+    percentage_required_inside_roi: tuple = (0.5, 0.5)
+  ) -> bool:
+  """Check whether all faces are sufficiently inside the ROI.
+
+  Args:
+    faces: The faces. Shape (n_faces, 4) in form (x0, y0, x1, y1)
+    roi: The region of interest. Shape (4,) in form (x0, y0, x1, y1)
+    percentage_required_inside_roi: Tuple (w, h) indicating what percentage
+      of width/height of face is required to remain inside the ROI.
+  Returns:
+    out: True if all faces are sufficiently inside the ROI.
+  """
+  faces_w = faces[:,2] - faces[:,0]
+  faces_h = faces[:,3] - faces[:,1]
+  faces_inside_roi = np.logical_and(
+    np.logical_and(faces[:,2] - roi[0] > percentage_required_inside_roi * faces_w,
+                   roi[2] - faces[:,0] > percentage_required_inside_roi * faces_w),
+    np.logical_and(faces[:,3] - roi[1] > percentage_required_inside_roi * faces_h,
+                   roi[3] - faces[:,1] > percentage_required_inside_roi * faces_h))
+  facess_inside_roi = np.all(faces_inside_roi)
+  return facess_inside_roi
+
 def convert_ndarray_to_list(d: Union[dict, list, np.ndarray]):
   """Recursively convert any np.ndarray to list in nested object.
   
