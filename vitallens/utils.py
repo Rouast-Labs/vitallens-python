@@ -30,7 +30,7 @@ from typing import Union, Tuple
 import urllib.request
 import yaml
 
-from vitallens.constants import API_MIN_FRAMES
+from vitallens.constants import API_MIN_FRAMES, VIDEO_PARSE_ERROR
 
 def load_config(filename: str) -> dict:
   """Load a yaml config file.
@@ -72,6 +72,7 @@ def probe_video_inputs(
   Returns:
     video_shape: The shape of the input video as (n_frames, h, w, 3)
     fps: Sampling frequency of the input video.
+    issues: True if a possible issue with the video has been detected.
   """
   # Check that fps is correct type
   if not (fps is None or isinstance(fps, (int, float))):
@@ -80,11 +81,11 @@ def probe_video_inputs(
   if isinstance(video, str):
     if os.path.isfile(video):
       try:
-        fps_, n, w_, h_, _, _, r = probe_video(video)
+        fps_, n, w_, h_, _, _, r, i = probe_video(video)
         if fps is None: fps = fps_
         if abs(r) == 90: h = w_; w = h_
         else: h = h_; w = w_
-        return (n, h, w, 3), fps
+        return (n, h, w, 3), fps, i
       except Exception as e:
         raise ValueError("Problem probing video at {}: {}".format(video, e))
     else:
@@ -96,7 +97,7 @@ def probe_video_inputs(
       raise ValueError("video.dtype should be uint8, but got {}".format(video.dtype))
     if len(video.shape) != 4 or video.shape[0] < API_MIN_FRAMES or video.shape[3] != 3:
       raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(API_MIN_FRAMES, video.shape))
-    return video.shape, fps
+    return video.shape, fps, False
   else:
     raise ValueError("Invalid video {}, type {}".format(video, type(input)))
 
@@ -135,15 +136,18 @@ def parse_video_inputs(
   if isinstance(video, str):
     if os.path.isfile(video):
       try:
-        fps_, n, w_, h_, _, _, r = probe_video(video)
+        fps_, n, w_, h_, _, _, r, i = probe_video(video)
         if fps is None: fps = fps_
         if roi is not None: roi = (int(roi[0]), int(roi[1]), int(roi[2]-roi[0]), int(roi[3]-roi[1]))
         if isinstance(target_size, tuple): target_size = (target_size[1], target_size[0])
         if abs(r) == 90: h = w_; w = h_
         else: h = h_; w = w_
-        video, ds_factor = read_video_from_path(
-          path=video, target_fps=target_fps, crop=roi, scale=target_size, trim=trim,
-          pix_fmt='rgb24', dim_deltas=dim_deltas, scale_algorithm=scale_algorithm)
+        try:
+          video, ds_factor = read_video_from_path(
+            path=video, target_fps=target_fps, crop=roi, scale=target_size, trim=trim,
+            pix_fmt='rgb24', dim_deltas=dim_deltas, scale_algorithm=scale_algorithm)
+        except:
+          ValueError(VIDEO_PARSE_ERROR)
         expected_n = math.ceil(((trim[1]-trim[0]) if trim is not None else n) / ds_factor)
         if video.shape[0] < expected_n:
           logging.warning("Less frames received than expected (delta = {}) - this may indicate an issue with the video file. Padding to avoid issues.".format(video.shape[0]-expected_n))
@@ -155,7 +159,7 @@ def parse_video_inputs(
         end_idx = min(n, trim[1]) if trim is not None else n
         idxs = list(range(start_idx, end_idx, ds_factor))
         if video.shape[0] != expected_n or len(idxs) != expected_n:
-          raise ValueError("Unable to parse input video. Possible issue with video file.")
+          raise ValueError(VIDEO_PARSE_ERROR)
         return video, fps, (n, h, w, 3), ds_factor, idxs
       except Exception as e:
         raise ValueError("Problem reading video from {}: {}".format(video, e))
@@ -248,7 +252,7 @@ def check_faces(
 
 def check_faces_in_roi(
     faces: np.ndarray,
-    roi: np.ndarray,
+    roi: Union[np.ndarray, tuple, list],
     percentage_required_inside_roi: tuple = (0.5, 0.5)
   ) -> bool:
   """Check whether all faces are sufficiently inside the ROI.
@@ -264,10 +268,10 @@ def check_faces_in_roi(
   faces_w = faces[:,2] - faces[:,0]
   faces_h = faces[:,3] - faces[:,1]
   faces_inside_roi = np.logical_and(
-    np.logical_and(faces[:,2] - roi[0] > percentage_required_inside_roi * faces_w,
-                   roi[2] - faces[:,0] > percentage_required_inside_roi * faces_w),
-    np.logical_and(faces[:,3] - roi[1] > percentage_required_inside_roi * faces_h,
-                   roi[3] - faces[:,1] > percentage_required_inside_roi * faces_h))
+    np.logical_and(faces[:,2] - roi[0] > percentage_required_inside_roi[0] * faces_w,
+                   roi[2] - faces[:,0] > percentage_required_inside_roi[0] * faces_w),
+    np.logical_and(faces[:,3] - roi[1] > percentage_required_inside_roi[1] * faces_h,
+                   roi[3] - faces[:,1] > percentage_required_inside_roi[1] * faces_h))
   facess_inside_roi = np.all(faces_inside_roi)
   return facess_inside_roi
 

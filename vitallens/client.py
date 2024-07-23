@@ -107,6 +107,7 @@ class VitalLens:
       faces: Union[np.ndarray, list] = None,
       fps: float = None,
       override_fps_target: float = None,
+      override_global_parse: bool = None,
       export_filename: str = None
     ) -> list:
     """Run rPPG inference.
@@ -124,6 +125,8 @@ class VitalLens:
       fps: Sampling frequency of the input video. Required if type(video) == np.ndarray. 
       override_fps_target: Target fps at which rPPG inference should be run (optional).
         If not provided, will use default of the selected method.
+      override_global_parse: If True, always use global parse. If False, don't use global parse.
+        If None, choose based on video.
       export_filename: Filename for json export if applicable.
     Returns:
       result: Analysis results as a list of faces in the following format:
@@ -169,7 +172,7 @@ class VitalLens:
         ]
     """
     # Probe inputs
-    inputs_shape, fps = probe_video_inputs(video=video, fps=fps)
+    inputs_shape, fps, _ = probe_video_inputs(video=video, fps=fps)
     # TODO: Optimize performance of simple rPPG methods for long videos
     # Warning if using long video
     target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
@@ -194,7 +197,9 @@ class VitalLens:
     for face in faces:
       # Run selected rPPG method
       data, unit, conf, note, live = self.rppg(
-        frames=video, faces=face, fps=fps, override_fps_target=override_fps_target)
+        frames=video, faces=face, fps=fps,
+        override_fps_target=override_fps_target,
+        override_global_parse=override_global_parse)
       # Parse face results
       face_result = {'face': {
         'coordinates': face,

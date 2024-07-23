@@ -37,13 +37,14 @@ def test_load_config(method):
 def test_probe_video_inputs(request, file):
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    video_shape, fps = probe_video_inputs(test_video_path)
+    video_shape, fps, i = probe_video_inputs(test_video_path)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    video_shape, fps = probe_video_inputs(test_video_ndarray, fps=test_video_fps)
+    video_shape, fps, i = probe_video_inputs(test_video_ndarray, fps=test_video_fps)
   assert video_shape == (360, 480, 768, 3)
   assert fps == 30
+  assert i == False
 
 def test_probe_video_inputs_no_file():
   with pytest.raises(Exception):

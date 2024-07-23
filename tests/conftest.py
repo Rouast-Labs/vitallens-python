@@ -52,7 +52,7 @@ def test_video_fps():
 
 @pytest.fixture(scope='session')
 def test_video_shape():
-  _, n, w, h, _, _, _ = probe_video(TEST_VIDEO_PATH)
+  _, n, w, h, *_ = probe_video(TEST_VIDEO_PATH)
   return (n, h, w, 3)
 
 @pytest.fixture(scope='session')

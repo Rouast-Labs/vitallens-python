@@ -38,5 +38,8 @@ API_URL = "https://api.rouast.com/vitallens-v2"
 if 'API_URL' in os.environ:
   API_URL = os.getenv('API_URL')
 
+# Video error message
+VIDEO_PARSE_ERROR = "Unable to parse input video. There may be an issue with the video file."
+
 # Disclaimer message
 DISCLAIMER = "The provided values are estimates and should be interpreted according to the provided confidence levels ranging from 0 to 1. The VitalLens API is not a medical device and its estimates are not intended for any medical purposes."

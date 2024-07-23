@@ -19,7 +19,6 @@
 # SOFTWARE.
 
 import numpy as np
-from prpy.ffmpeg.probe import probe_video
 import pytest
 
 import sys

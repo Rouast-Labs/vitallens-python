@@ -94,8 +94,9 @@ def create_mock_api_response(
 @pytest.mark.parametrize("file", [True, False])
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
 @pytest.mark.parametrize("long", [False, True])
+@pytest.mark.parametrize("override_global_parse", [False, True])
 @patch('requests.post', side_effect=create_mock_api_response)
-def test_VitalLensRPPGMethod_mock(mock_post, request, file, override_fps_target, long):
+def test_VitalLensRPPGMethod_mock(mock_post, request, file, long, override_fps_target, override_global_parse):
   if long and file:
     pytest.skip("Skip because parameter combination does not work")
   config = load_config("vitallens.yaml")
@@ -108,15 +109,17 @@ def test_VitalLensRPPGMethod_mock(mock_post, request, file, override_fps_target,
   if file:
     data, unit, conf, note, live = method(
       frames=test_video_path, faces=test_video_faces,
-      override_fps_target=override_fps_target)
-  else: 
+      override_fps_target=override_fps_target,
+      override_global_parse=override_global_parse)
+  else:
     if long:
       n_repeats = (API_MAX_FRAMES * 3) // test_video_ndarray.shape[0] + 1
       test_video_ndarray = np.repeat(test_video_ndarray, repeats=n_repeats, axis=0)
       test_video_faces = np.repeat(test_video_faces, repeats=n_repeats, axis=0)
     data, unit, conf, note, live = method(
       frames=test_video_ndarray, faces=test_video_faces,
-      fps=test_video_fps, override_fps_target=override_fps_target)
+      fps=test_video_fps, override_fps_target=override_fps_target,
+      override_global_parse=override_global_parse)
   assert all(key in data for key in method.signals)
   assert all(key in unit for key in method.signals)
   assert all(key in conf for key in method.signals)
