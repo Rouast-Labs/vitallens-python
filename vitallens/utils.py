@@ -20,6 +20,7 @@
 
 import importlib.resources
 import logging
+import math
 import numpy as np
 import os
 from prpy.ffmpeg.probe import probe_video
@@ -107,7 +108,8 @@ def parse_video_inputs(
     target_fps: float = None,
     library: str = 'prpy',
     scale_algorithm: str = 'bilinear',
-    trim: tuple = None
+    trim: tuple = None,
+    dim_deltas: tuple = (1, 1, 1)
   ) -> Tuple[np.ndarray, float, tuple, int]:
   """Parse video inputs into required shape.
 
@@ -120,6 +122,7 @@ def parse_video_inputs(
     library: Library to use for resample if video is np.ndarray
     scale_algorithm: Algorithm to use for resample
     trim: Frame numbers for temporal trimming (start, end) (optional).
+    dim_deltas: Maximum acceptable deviation from expected video (n, h, w) dims.
   Returns:
     parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
       if target_size provided, h = target_size[0] and w = target_size[1].
@@ -140,10 +143,19 @@ def parse_video_inputs(
         else: h = h_; w = w_
         video, ds_factor = read_video_from_path(
           path=video, target_fps=target_fps, crop=roi, scale=target_size, trim=trim,
-          pix_fmt='rgb24', dim_deltas=(1,1,1), scale_algorithm=scale_algorithm)
+          pix_fmt='rgb24', dim_deltas=dim_deltas, scale_algorithm=scale_algorithm)
+        expected_n = math.ceil(((trim[1]-trim[0]) if trim is not None else n) / ds_factor)
+        if video.shape[0] < expected_n:
+          logging.warning("Less frames received than expected (delta = {}) - this may indicate an issue with the video file. Padding to avoid issues.".format(video.shape[0]-expected_n))
+          video = np.concatenate((np.repeat(video[:1], expected_n - video.shape[0], axis=0), video), axis=0)
+        elif video.shape[0] > expected_n:
+          logging.warning("More frames received than expected (delta = {}) - this may indicate an issue with the video file. Trimming to avoid issues.".format(video.shape[0]-expected_n))
+          video = video[:expected_n]
         start_idx = max(0, trim[0]) if trim is not None else 0
         end_idx = min(n, trim[1]) if trim is not None else n
         idxs = list(range(start_idx, end_idx, ds_factor))
+        if video.shape[0] != expected_n or len(idxs) != expected_n:
+          raise ValueError("Unable to parse input video. Possible issue with video file.")
         return video, fps, (n, h, w, 3), ds_factor, idxs
       except Exception as e:
         raise ValueError("Problem reading video from {}: {}".format(video, e))
