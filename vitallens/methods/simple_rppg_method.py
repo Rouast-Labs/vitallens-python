@@ -57,7 +57,8 @@ class SimpleRPPGMethod(RPPGMethod):
       frames: Union[np.ndarray, str],
       faces: np.ndarray,
       fps: float,
-      override_fps_target: float = None
+      override_fps_target: float = None,
+      override_global_parse: float = None,
     ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
     """Estimate pulse signal from video frames using the subclass algorithm.
 
@@ -66,6 +67,7 @@ class SimpleRPPGMethod(RPPGMethod):
       faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
+      override_global_parse: Has no effect here.
     Returns:
       data: A dictionary with the values of the estimated vital signs.
       unit: A dictionary with the units of the estimated vital signs.

@@ -26,7 +26,7 @@ sys.path.append('../vitallens-python')
 
 from vitallens.client import Method
 from vitallens.utils import load_config, probe_video_inputs, parse_video_inputs
-from vitallens.utils import merge_faces, check_faces
+from vitallens.utils import merge_faces, check_faces, check_faces_in_roi
 
 @pytest.mark.parametrize("method", [m for m in Method])
 def test_load_config(method):
@@ -37,13 +37,14 @@ def test_load_config(method):
 def test_probe_video_inputs(request, file):
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    video_shape, fps = probe_video_inputs(test_video_path)
+    video_shape, fps, i = probe_video_inputs(test_video_path)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    video_shape, fps = probe_video_inputs(test_video_ndarray, fps=test_video_fps)
+    video_shape, fps, i = probe_video_inputs(test_video_ndarray, fps=test_video_fps)
   assert video_shape == (360, 480, 768, 3)
   assert fps == 30
+  assert i == False
 
 def test_probe_video_inputs_no_file():
   with pytest.raises(Exception):
@@ -152,4 +153,21 @@ def test_check_faces_n_frames_n_dets_not_matching_2():
 def test_check_faces_invalid_dets():
   with pytest.raises(Exception):
     _ = check_faces([1, 3, 2, 2], inputs_shape=(2, 10, 10, 3))
-    
+
+@pytest.mark.parametrize("scenario", [([[0.4, 0.4, 0.6, 0.6], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.5), True), # Fully in ROI
+                                      ([[0.2, 0.4, 0.6, 0.6], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.5), True), # Slightly out to left but ok
+                                      ([[0.0, 0.4, 0.4, 0.6], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.5), False), # Too much out to left
+                                      ([[0.5, 0.4, 0.9, 0.6], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.2, 0.5), True), # Slightly out to right but ok
+                                      ([[0.5, 0.4, 0.9, 0.6], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.6, 0.5), False), # Too much out to right
+                                      ([[0.4, 0.2, 0.6, 0.5], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.5), True), # Slightly out to top but ok
+                                      ([[0.4, 0.1, 0.6, 0.5], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.6), False), # Too much out to top
+                                      ([[0.4, 0.5, 0.6, 0.8], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.5), True), # Slightly out to bottom but ok
+                                      ([[0.4, 0.6, 0.6, 0.9], [0.4, 0.4, 0.6, 0.6]], [0.3, 0.3, 0.7, 0.7], (0.5, 0.5), False), # Too much out to bottom
+                                      ])
+def test_check_faces_in_roi(scenario):
+  faces = np.asarray(scenario[0])
+  roi = np.asarray(scenario[1])
+  percentage_required_inside_roi = scenario[2]
+  expected = scenario[3]
+  actual = check_faces_in_roi(faces=faces, roi=roi, percentage_required_inside_roi=percentage_required_inside_roi)
+  assert expected == actual
