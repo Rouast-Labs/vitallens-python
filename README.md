@@ -203,3 +203,27 @@ To build:
 ```
 python -m build
 ```
+
+## Running examples
+
+To run the examples, you will need to install the requirements:
+
+```
+uv pip compile requirements.in -o requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate # or for fish: source .venv/bin/activate.fish
+pip install -r requirements.txt
+pip install -e .
+```
+
+Then you can run the examples:
+
+```
+python examples/test.py
+```
+
+Or run the example notebook:
+
+```
+jupyter notebook notebooks/POS_example.ipynb
+```
