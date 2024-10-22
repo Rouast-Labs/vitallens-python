@@ -54,7 +54,7 @@ class SimpleRPPGMethod(RPPGMethod):
     pass
   def __call__(
       self,
-      frames: Union[np.ndarray, str],
+      frames: Union[np.ndarray, str], # TODO: Rename to `video`
       faces: np.ndarray,
       fps: float,
       override_fps_target: float = None,
@@ -63,7 +63,8 @@ class SimpleRPPGMethod(RPPGMethod):
     """Estimate pulse signal from video frames using the subclass algorithm.
 
     Args:
-      frames: The video frames. Shape (n_frames, h, w, c)
+      frames: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+        in unscaled uint8 RGB format, or a path to a video file.
       faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
       override_fps_target: Override the method's default inference fps (optional).
@@ -73,7 +74,7 @@ class SimpleRPPGMethod(RPPGMethod):
       unit: A dictionary with the units of the estimated vital signs.
       conf: A dictionary with the confidences of the estimated vital signs.
       note: A dictionary with notes on the estimated vital signs.
-      live: Dummy live confidence estimation (set to always 1). Shape (1, n_frames)
+      live: Dummy live confidence estimation (set to always 1). Shape (n_frames,)
     """
     # Compute temporal union of ROIs
     u_roi = merge_faces(faces)

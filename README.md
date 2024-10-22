@@ -118,7 +118,7 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
     <same structure for face 2 if present>
   },
   ...
-  ]
+]
 ```
 
 If the video is long enough and `estimate_running_vitals=True`, the results additionally contain running vitals:
