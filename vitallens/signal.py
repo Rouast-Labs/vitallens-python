@@ -28,22 +28,50 @@ from vitallens.constants import CALC_HR_MAX, CALC_RR_MAX
 
 def moving_average_size_for_hr_response(
     f_s: Union[float, int]
-  ):
+  ) -> int:
+  """Get the moving average window size for a signal with HR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The moving average size in number of signal vals
+  """
   return moving_average_size_for_response(f_s, CALC_HR_MAX / SECONDS_PER_MINUTE)
 
 def moving_average_size_for_rr_response(
     f_s: Union[float, int]
-  ):
+  ) -> int:
+  """Get the moving average window size for a signal with RR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The moving average size in number of signal vals
+  """
   return moving_average_size_for_response(f_s, CALC_RR_MAX / SECONDS_PER_MINUTE)
 
 def detrend_lambda_for_hr_response(
     f_s: Union[float, int]
-  ):
+  ) -> int:
+  """Get the detrending lambda parameter for a signal with HR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The lambda parameter
+  """
   return int(0.1614*np.power(f_s, 1.9804))
 
 def detrend_lambda_for_rr_response(
     f_s: Union[float, int]
-  ):
+  ) -> int:
+  """Get the detrending lambda parameter for a signal with RR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The lambda parameter
+  """
   return int(4.4248*np.power(f_s, 2.1253))
 
 def windowed_mean(
@@ -126,16 +154,16 @@ def windowed_freq(
 def reassemble_from_windows(
     x: np.ndarray,
     idxs: np.ndarray
-  ) -> np.ndarray:
+  ) -> Tuple[np.ndarray, np.ndarray]:
   """Reassemble windowed data using corresponding idxs.
 
   Args:
     x: Data generated using a windowing operation. Shape (n_windows, n, window_size)
     idxs: Indices of x in the original 1-d array. Shape (n_windows, window_size)
-  
   Returns:
-    out: Reassembled data. Shape (n, n_idxs)
-    idxs: Reassembled idxs. Shape (n_idxs)
+    Tuple of
+     - out: Reassembled data. Shape (n, n_idxs)
+     - idxs: Reassembled idxs. Shape (n_idxs,)
   """
   x = np.asarray(x)
   idxs = np.asarray(idxs)

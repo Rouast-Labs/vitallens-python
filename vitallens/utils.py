@@ -61,7 +61,7 @@ def download_file(url: str, dest: str):
 def probe_video_inputs(
     video: Union[np.ndarray, str],
     fps: float = None
-  ) -> Tuple[tuple, float]:
+  ) -> Tuple[tuple, float, bool]:
   """Check the video inputs and probe to extract metadata.
 
   Args:
@@ -70,9 +70,10 @@ def probe_video_inputs(
       video file.
     fps: Sampling frequency of the input video. Required if type(video)==np.ndarray.
   Returns:
-    video_shape: The shape of the input video as (n_frames, h, w, 3)
-    fps: Sampling frequency of the input video.
-    issues: True if a possible issue with the video has been detected.
+    Tuple of
+     - video_shape: The shape of the input video as (n_frames, h, w, 3)
+     - fps: Sampling frequency of the input video.
+     - issues: True if a possible issue with the video has been detected.
   """
   # Check that fps is correct type
   if not (fps is None or isinstance(fps, (int, float))):
@@ -111,7 +112,7 @@ def parse_video_inputs(
     scale_algorithm: str = 'bilinear',
     trim: tuple = None,
     dim_deltas: tuple = (1, 1, 1)
-  ) -> Tuple[np.ndarray, float, tuple, int]:
+  ) -> Tuple[np.ndarray, float, tuple, int, list]:
   """Parse video inputs into required shape.
 
   Args:
@@ -125,12 +126,13 @@ def parse_video_inputs(
     trim: Frame numbers for temporal trimming (start, end) (optional).
     dim_deltas: Maximum acceptable deviation from expected video (n, h, w) dims.
   Returns:
-    parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
-      if target_size provided, h = target_size[0] and w = target_size[1].
-    fps_in: Frame rate of original inputs
-    shape_in: Shape of original inputs in form (n, h, w, c)
-    ds_factor: Temporal downsampling factor applied
-    idxs: The frame indices returned from original video
+    Tuple of
+     - parsed: Parsed inputs as `np.ndarray` with type uint8. Shape (n, h, w, c)
+        if target_size provided, h = target_size[0] and w = target_size[1].
+     - fps_in: Frame rate of original inputs
+     - shape_in: Shape of original inputs in form (n, h, w, c)
+     - ds_factor: Temporal downsampling factor applied
+     - idxs: The frame indices returned from original video
   """
   # Check if input is array or file name
   if isinstance(video, str):

@@ -19,13 +19,21 @@
 # SOFTWARE.
 
 import abc
+import numpy as np
 
 class RPPGMethod(metaclass=abc.ABCMeta):
-  def __init__(self, config):
+  """Abstract superclass for rPPG methods"""
+  def __init__(self, config: dict):
+    """Initialize the `RPPGMethod`
+    
+    Args:
+      config: The configuration dict
+    """
     self.fps_target = config['fps_target']
     self.est_window_length = config['est_window_length']
     self.est_window_overlap = config['est_window_overlap']
     self.est_window_flexible = self.est_window_length == 0
   @abc.abstractmethod
-  def __call__(self, video, fps, mode):
+  def __call__(self, frames, faces, fps, override_fps_target, override_global_parse):
+    """Run inference. Abstract method to be implemented in subclasses."""
     pass

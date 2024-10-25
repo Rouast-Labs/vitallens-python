@@ -42,11 +42,18 @@ from vitallens.signal import reassemble_from_windows
 from vitallens.utils import probe_video_inputs, parse_video_inputs, check_faces_in_roi
 
 class VitalLensRPPGMethod(RPPGMethod):
+  """RPPG method using the VitalLens API for inference"""
   def __init__(
       self,
       config: dict,
       api_key: str
     ):
+    """Initialize the `VitalLensRPPGMethod`
+    
+    Args:
+      config: The configuration dict
+      api_key: The API key
+    """
     super(VitalLensRPPGMethod, self).__init__(config=config)
     self.api_key = api_key
     self.input_size = config['input_size']
@@ -71,11 +78,12 @@ class VitalLensRPPGMethod(RPPGMethod):
       override_global_parse: If True, always use global parse. If False, don't use global parse.
         If None, choose based on video.
     Returns:
-      out_data: The estimated data/value for each signal.
-      out_unit: The estimation unit for each signal.
-      out_conf: The estimation confidence for each signal.
-      out_note: An explanatory note for each signal.
-      live: The face live confidence. Shape (1, n_frames)
+      Tuple of
+       - out_data: The estimated data/value for each signal.
+       - out_unit: The estimation unit for each signal.
+       - out_conf: The estimation confidence for each signal.
+       - out_note: An explanatory note for each signal.
+       - live: The face live confidence. Shape (1, n_frames)
     """
     inputs_shape, fps, video_issues = probe_video_inputs(video=frames, fps=fps)
     video_fits_in_memory = enough_memory_for_ndarray(
@@ -189,10 +197,11 @@ class VitalLensRPPGMethod(RPPGMethod):
       fps: The frame rate of the input video. Required if type(video) == np.ndarray
       global_parse: Flag that indicates whether video has already been parsed.
     Returns:
-      sig: Estimated signals. Shape (n_sig, n_frames)
-      conf: Estimation confidences. Shape (n_sig, n_frames)
-      live: Liveness estimation. Shape (n_frames,)
-      idxs: Indices in inputs that were processed. Shape (n_frames)
+      Tuple of
+       - sig: Estimated signals. Shape (n_sig, n_frames)
+       - conf: Estimation confidences. Shape (n_sig, n_frames)
+       - live: Liveness estimation. Shape (n_frames,)
+       - idxs: Indices in inputs that were processed. Shape (n_frames)
     """
     logging.debug("Batch {}/{}...".format(batch, n_batches))
     # Trim face detections to batch if necessary
@@ -256,7 +265,13 @@ class VitalLensRPPGMethod(RPPGMethod):
     live_ds = np.asarray(response_body["face"]["confidence"])
     idxs = np.asarray(idxs)
     return sig_ds, conf_ds, live_ds, idxs
-  def postprocess(self, sig, fps, type='ppg', filter=True):
+  def postprocess(
+      self,
+      sig: np.ndarray,
+      fps: float,
+      type: str = 'ppg',
+      filter: bool = True
+    ) -> np.ndarray:
     """Apply filters to the estimated signal. 
     Args:
       sig: The estimated signal. Shape (n_frames,)

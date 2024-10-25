@@ -26,10 +26,16 @@ from vitallens.signal import detrend_lambda_for_hr_response
 from vitallens.signal import moving_average_size_for_hr_response
 
 class GRPPGMethod(SimpleRPPGMethod):
+  """The G algorithm by Verkruysse (2008)"""
   def __init__(
       self,
       config: dict
     ):
+    """Initialize the `GRPPGMethod`
+    
+    Args:
+      config: The configuration dict
+    """
     super(GRPPGMethod, self).__init__(config=config)
   def algorithm(
       self,

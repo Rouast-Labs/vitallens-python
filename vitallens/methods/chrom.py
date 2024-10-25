@@ -28,16 +28,22 @@ from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response
 
 class CHROMRPPGMethod(SimpleRPPGMethod):
+  """The CHROM algorithm by De Haan and Jeanne (2013)"""
   def __init__(
       self,
       config: dict
     ):
+    """Initialize the `CHROMRPPGMethod`
+    
+    Args:
+      config: The configuration dict
+    """
     super(CHROMRPPGMethod, self).__init__(config=config)
   def algorithm(
       self,
       rgb: np.ndarray,
       fps: float
-    ):
+    ) -> np.ndarray:
     """Use CHROM algorithm to estimate pulse from rgb signal.
     
     Args:
@@ -77,7 +83,7 @@ class CHROMRPPGMethod(SimpleRPPGMethod):
       self,
       sig: np.ndarray,
       fps: float
-    ):
+    ) -> np.ndarray:
     """Apply filters to the estimated pulse signal.
 
     Args:

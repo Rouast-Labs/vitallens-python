@@ -31,10 +31,16 @@ from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.utils import parse_video_inputs, merge_faces
 
 class SimpleRPPGMethod(RPPGMethod):
+  """A simple rPPG method using a handcrafted algorithm based on RGB signal trace"""
   def __init__(
       self,
       config: dict
     ):
+    """Initialize the `SimpleRPPGMethod`
+    
+    Args:
+      config: The configuration dict
+    """
     super(SimpleRPPGMethod, self).__init__(config=config)
     self.model = config['model']
     self.roi_method = config['roi_method']
@@ -45,12 +51,14 @@ class SimpleRPPGMethod(RPPGMethod):
       rgb: np.ndarray,
       fps: float
     ):
+    """The algorithm. Abstract method to be implemented by subclasses."""
     pass
   @abc.abstractmethod
   def pulse_filter(self, 
       sig: np.ndarray,
       fps: float
     ) -> np.ndarray:
+    """The post-processing filter to be applied to estimated pulse signal. Abstract method to be implemented by subclasses."""
     pass
   def __call__(
       self,
@@ -70,11 +78,12 @@ class SimpleRPPGMethod(RPPGMethod):
       override_fps_target: Override the method's default inference fps (optional).
       override_global_parse: Has no effect here.
     Returns:
-      data: A dictionary with the values of the estimated vital signs.
-      unit: A dictionary with the units of the estimated vital signs.
-      conf: A dictionary with the confidences of the estimated vital signs.
-      note: A dictionary with notes on the estimated vital signs.
-      live: Dummy live confidence estimation (set to always 1). Shape (n_frames,)
+      Tuple of
+       - data: A dictionary with the values of the estimated vital signs.
+       - unit: A dictionary with the units of the estimated vital signs.
+       - conf: A dictionary with the confidences of the estimated vital signs.
+       - note: A dictionary with notes on the estimated vital signs.
+       - live: Dummy live confidence estimation (set to always 1). Shape (n_frames,)
     """
     # Compute temporal union of ROIs
     u_roi = merge_faces(faces)

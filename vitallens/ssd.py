@@ -53,7 +53,9 @@ def nms(
     iou_threshold: Threshold wrt iou for amount of box overlap. Scalar.
     score_threshold: Threshold wrt score for removing boxes. Scalar.
   Returns:
-    idxs: The selected indices padded with zero. Shape (n_batch, max_output_size)
+    Tuple of
+     - idxs: The selected indices padded with zero. Shape (n_batch, max_output_size)
+     - num_valid: Number of valid elements per batch. Shape (n_batch,)
   """
   n_batch = boxes.shape[0]
   # Split up box coordinates
@@ -108,8 +110,9 @@ def enforce_temporal_consistency(
     info: Detection info: idx, scanned, scan_found_face, confidence. Shape (n_frames, n_faces, 4)
     n_frames: Number of frames in the original input.
   Returns:
-    boxes: Processed boxes in point form [0, 1], shape (n_frames, n_faces, 4)
-    info: Processed info: idx, scanned, scan_found_face, confidence. Shape (n_frames, n_faces, 4)
+    Tuple of
+     - boxes: Processed boxes in point form [0, 1], shape (n_frames, n_faces, 4)
+     - info: Processed info: idx, scanned, scan_found_face, confidence. Shape (n_frames, n_faces, 4)
   """
   # Make sure that enough frames are present
   if n_frames == 1:
@@ -162,8 +165,9 @@ def interpolate_unscanned_frames(
     info: Detection info: idx, scanned, scan_found_face, interp_valid, confidence. Shape (n_frames, n_faces, 5)
     n_frames: Number of frames in the original input.
   Returns:
-    boxes: Processed boxes in point form [0, 1], shape (orig_n_frames, n_faces, 4)
-    info: Processed info: idx, scanned, scan_found_face, confidence. Shape (orig_n_frames, n_faces, 4)
+    Tuple of
+     - boxes: Processed boxes in point form [0, 1], shape (orig_n_frames, n_faces, 4)
+     - info: Processed info: idx, scanned, scan_found_face, confidence. Shape (orig_n_frames, n_faces, 4)
   """
   _, n_faces, _ = info.shape
   # Add rows corresponding to unscanned frames
@@ -220,8 +224,9 @@ class FaceDetector:
       inputs_shape: The shape of the input video as (n_frames, h, w, 3)
       fps: Sampling frequency of the input video.
     Returns:
-      boxes: Detected face boxes in relative flat point form (n_frames, n_faces, 4)
-      info: Tuple (idx, scanned, scan_found_face, interp_valid, confidence) (n_frames, n_faces, 5)
+      Tuple of
+       - boxes: Detected face boxes in relative flat point form (n_frames, n_faces, 4)
+       - info: Tuple (idx, scanned, scan_found_face, interp_valid, confidence) (n_frames, n_faces, 5)
     """
     # Determine number of batches
     n_frames = inputs_shape[0]
@@ -275,7 +280,7 @@ class FaceDetector:
       start: int,
       end: int,
       fps: float = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, list]:
     """Parse video and run inference for one batch.
 
     Args:
@@ -287,9 +292,10 @@ class FaceDetector:
       end: The index of the last frame of the video to analyze in this batch.
       fps: Sampling frequency of the input video. Required if type(video) == np.ndarray.
     Returns:
-      boxes: Scanned boxes in flat point form (n_frames, n_boxes, 4)
-      classes: Detection scores for boxes (n_frames, n_boxes, 2)
-      idxs: Indices of the scanned frames from the original video
+      Tuple of
+       - boxes: Scanned boxes in flat point form (n_frames, n_boxes, 4)
+       - classes: Detection scores for boxes (n_frames, n_boxes, 2)
+       - idxs: Indices of the scanned frames from the original video
     """
     logging.debug("Batch {}/{}...".format(batch, n_batches))
     # Parse the inputs
