@@ -18,7 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import importlib.resources
 import logging
 import math
 import numpy as np
@@ -26,9 +25,15 @@ import os
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.numpy.image import crop_slice_resize
+import sys
 from typing import Union, Tuple
 import urllib.request
 import yaml
+
+if sys.version_info >= (3, 9):
+  from importlib.resources import open_binary
+else:
+  from importlib_resources import open_binary
 
 from vitallens.constants import API_MIN_FRAMES, VIDEO_PARSE_ERROR
 
@@ -40,7 +45,7 @@ def load_config(filename: str) -> dict:
   Returns:
     loaded: The contents of the yaml config file
   """
-  with importlib.resources.open_binary('vitallens.configs', filename) as f:
+  with open_binary('vitallens.configs', filename) as f:
     loaded = yaml.load(f, Loader=yaml.Loader)
   return loaded
 
