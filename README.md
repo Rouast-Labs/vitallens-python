@@ -198,13 +198,19 @@ Please note that the example script plots won't work when running them through D
 
 #### Usage
 
-1. Build the Docker image
+1. Clone the repository
+
+```
+git clone https://github.com/Rouast-Labs/vitallens-python.git && cd vitallens-python
+```
+
+2. Build the Docker image
 
 ```
 docker build -t vitallens .
 ```
 
-2. Run the Docker container
+3. Run the Docker container
 
 To run the example script on the sample video:
 
