@@ -21,6 +21,7 @@
 import base64
 import json
 import numpy as np
+from prpy.numpy.image import parse_image_inputs
 import pytest
 import requests
 from unittest.mock import Mock, patch
@@ -30,7 +31,7 @@ sys.path.append('../vitallens-python')
 
 from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_URL
 from vitallens.methods.vitallens import VitalLensRPPGMethod
-from vitallens.utils import load_config, parse_video_inputs
+from vitallens.utils import load_config
 
 def create_mock_response(
     status_code: int,
@@ -137,8 +138,8 @@ def test_VitalLens_API_valid_response(request, process_signals):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  frames, *_ = parse_video_inputs(
-    video=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
+  frames, *_ = parse_image_inputs(
+    inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": api_key}
   payload = {"video": base64.b64encode(frames[:16].tobytes()).decode('utf-8')}
@@ -168,8 +169,8 @@ def test_VitalLens_API_wrong_api_key(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  frames, *_ = parse_video_inputs(
-    video=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
+  frames, *_ = parse_image_inputs(
+    inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": "WRONG_API_KEY"}
   payload = {"video": base64.b64encode(frames[:16].tobytes()).decode('utf-8')}

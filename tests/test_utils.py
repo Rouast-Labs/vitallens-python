@@ -19,13 +19,14 @@
 # SOFTWARE.
 
 import numpy as np
+from prpy.numpy.image import parse_image_inputs, probe_image_inputs
 import pytest
 
 import sys
 sys.path.append('../vitallens-python')
 
 from vitallens.client import Method
-from vitallens.utils import load_config, probe_video_inputs, parse_video_inputs
+from vitallens.utils import load_config
 from vitallens.utils import merge_faces, check_faces, check_faces_in_roi
 
 @pytest.mark.parametrize("method", [m for m in Method])
@@ -37,52 +38,47 @@ def test_load_config(method):
 def test_probe_video_inputs(request, file):
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    video_shape, fps, i = probe_video_inputs(test_video_path)
+    video_shape, fps, i = probe_image_inputs(test_video_path)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    video_shape, fps, i = probe_video_inputs(test_video_ndarray, fps=test_video_fps)
+    video_shape, fps, i = probe_image_inputs(test_video_ndarray, fps=test_video_fps)
   assert video_shape == (360, 480, 768, 3)
   assert fps == 30
   assert i == False
 
 def test_probe_video_inputs_no_file():
   with pytest.raises(Exception):
-    _ = probe_video_inputs("does_not_exist", fps="fps")
+    _ = probe_image_inputs("does_not_exist", fps="fps")
 
 def test_probe_video_inputs_wrong_fps(request):
   with pytest.raises(Exception):
     test_video_path = request.getfixturevalue('test_video_path')
-    _ = probe_video_inputs(test_video_path, fps="fps")
+    _ = probe_image_inputs(test_video_path, fps="fps")
 
 def test_probe_video_inputs_no_fps(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   with pytest.raises(Exception):
-    _ = probe_video_inputs(test_video_ndarray)
+    _ = probe_image_inputs(test_video_ndarray)
 
 def test_probe_video_inputs_wrong_dtype(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   with pytest.raises(Exception):
-    _ = probe_video_inputs(test_video_ndarray.astype(np.float32), fps=30.)
+    _ = probe_image_inputs(test_video_ndarray.astype(np.float32), fps=30.)
 
 def test_probe_video_inputs_wrong_shape_1(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   with pytest.raises(Exception):
-    _ = probe_video_inputs(test_video_ndarray[np.newaxis], fps=30.)
+    _ = probe_image_inputs(test_video_ndarray[np.newaxis], fps=30.)
 
 def test_probe_video_inputs_wrong_shape_2(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   with pytest.raises(Exception):
-    _ = probe_video_inputs(test_video_ndarray[...,0:1], fps=30.)
-
-def test_probe_video_inputs_wrong_shape_3(request):
-  test_video_ndarray = request.getfixturevalue('test_video_ndarray')
-  with pytest.raises(Exception):
-    _ = probe_video_inputs(test_video_ndarray[:10], fps=30.)
+    _ = probe_image_inputs(test_video_ndarray[...,0:1], fps=30.)
 
 def test_probe_video_inputs_wrong_type():
   with pytest.raises(Exception):
-    _ = probe_video_inputs(12345, fps=30.)
+    _ = probe_image_inputs(12345, fps=30.)
 
 @pytest.mark.parametrize("file", [True, False])
 @pytest.mark.parametrize("roi", [None, (200, 0, 500, 350)])
@@ -91,13 +87,13 @@ def test_probe_video_inputs_wrong_type():
 def test_parse_video_inputs(request, file, roi, target_size, target_fps):
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
-    parsed, fps_in, video_shape_in, ds_factor, idxs = parse_video_inputs(
-      test_video_path, roi=roi, target_size=target_size, target_fps=target_fps)
+    parsed, fps_in, video_shape_in, ds_factor, idxs = parse_image_inputs(
+      inputs=test_video_path, roi=roi, target_size=target_size, target_fps=target_fps)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
-    parsed, fps_in, video_shape_in, ds_factor, idxs = parse_video_inputs(
-      test_video_ndarray, fps=test_video_fps, roi=roi, target_size=target_size,
+    parsed, fps_in, video_shape_in, ds_factor, idxs = parse_image_inputs(
+      inputs=test_video_ndarray, fps=test_video_fps, roi=roi, target_size=target_size,
       target_fps=target_fps)
   assert parsed.shape == (360 if target_fps is None else 360 // 2,
                           200 if target_size is not None else (350 if roi is not None else 480),
@@ -110,11 +106,11 @@ def test_parse_video_inputs(request, file, roi, target_size, target_fps):
 
 def test_parse_video_inputs_no_file():
   with pytest.raises(Exception):
-    _ = parse_video_inputs("does_not_exist")
+    _ = parse_image_inputs("does_not_exist")
 
 def test_parse_video_inputs_wrong_type():
   with pytest.raises(Exception):
-    _ = parse_video_inputs(12345, fps=30.)
+    _ = parse_image_inputs(12345, fps=30.)
 
 def test_merge_faces():
   np.testing.assert_equal(

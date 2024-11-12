@@ -22,13 +22,13 @@ import abc
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
-from prpy.numpy.image import reduce_roi
+from prpy.numpy.image import reduce_roi, parse_image_inputs
 from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
 from typing import Union, Tuple
 
 from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX
 from vitallens.methods.rppg_method import RPPGMethod
-from vitallens.utils import parse_video_inputs, merge_faces
+from vitallens.utils import merge_faces
 
 class SimpleRPPGMethod(RPPGMethod):
   """A simple rPPG method using a handcrafted algorithm based on RGB signal trace"""
@@ -89,9 +89,11 @@ class SimpleRPPGMethod(RPPGMethod):
     u_roi = merge_faces(faces)
     faces = faces - [u_roi[0], u_roi[1], u_roi[0], u_roi[1]]
     # Parse the inputs
-    frames_ds, fps, inputs_shape, ds_factor, _ = parse_video_inputs(
-      video=frames, fps=fps, target_size=None, roi=u_roi,
-      target_fps=override_fps_target if override_fps_target is not None else self.fps_target)   
+    frames_ds, fps, inputs_shape, ds_factor, _ = parse_image_inputs(
+      inputs=frames, fps=fps, roi=u_roi, target_size=None,
+      target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
+      preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
+      trim=None, allow_image=False, videodims=True)
     assert inputs_shape[0] == faces.shape[0], "Need same number of frames as face detections"
     faces_ds = faces[0::ds_factor]
     assert frames_ds.shape[0] == faces_ds.shape[0], "Need same number of frames as face detections"

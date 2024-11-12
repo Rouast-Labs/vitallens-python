@@ -19,7 +19,6 @@
 # SOFTWARE.
 
 import abc
-import numpy as np
 
 class RPPGMethod(metaclass=abc.ABCMeta):
   """Abstract superclass for rPPG methods"""
