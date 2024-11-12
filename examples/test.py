@@ -57,6 +57,8 @@ def run(args=None):
   stop = timeit.default_timer()
   time_ms = (stop-start)*1000
   print("Inference time: {:.2f} ms".format(time_ms))
+  # Print the results
+  print(result)
   # Plot the results
   vital_signs = result[0]['vital_signs']
   if "respiratory_waveform" in vital_signs:

@@ -186,6 +186,51 @@ vl = VitalLens(method=Method.POS)
 result = vl(my_video_arr, fps=my_video_fps)
 ```
 
+### Example: Run example script with Docker
+
+If you encounter issues installing `vitallens-python` dependencies directly, you can use our Docker image, which contains all necessary tools and libraries.
+This docker image is set up to execute the example Python script in `examples/test.py` for you.
+Please note that the example script plots won't work when running them through Docker. 
+
+#### Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/) installed on your system.
+
+#### Usage
+
+1. Clone the repository
+
+```
+git clone https://github.com/Rouast-Labs/vitallens-python.git && cd vitallens-python
+```
+
+2. Build the Docker image
+
+```
+docker build -t vitallens .
+```
+
+3. Run the Docker container
+
+To run the example script on the sample video:
+
+```
+docker run vitallens \          
+  --api_key "your_api_key_here" \
+  --vitals_path "examples/sample_vitals_2.csv" \
+  --video_path "examples/sample_video_2.mp4" \
+  --method "VITALLENS"
+```
+
+You can also run it on your own video:
+
+```
+docker run vitallens \          
+  --api_key "your_api_key_here" \
+  --video_path "path/to/your/video.mp4" \
+  --method "VITALLENS"
+```
+
 ## Linting and tests
 
 Before running tests, please make sure that you have an environment variable `VITALLENS_DEV_API_KEY` set to a valid API Key. 

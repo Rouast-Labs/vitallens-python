@@ -24,6 +24,7 @@ import math
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
+from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.signal import detrend, moving_average, standardize
 from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
 from prpy.numpy.utils import enough_memory_for_ndarray
@@ -39,7 +40,7 @@ from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from vitallens.signal import reassemble_from_windows
-from vitallens.utils import probe_video_inputs, parse_video_inputs, check_faces_in_roi
+from vitallens.utils import check_faces_in_roi
 
 class VitalLensRPPGMethod(RPPGMethod):
   """RPPG method using the VitalLens API for inference"""
@@ -83,17 +84,18 @@ class VitalLensRPPGMethod(RPPGMethod):
        - out_unit: The estimation unit for each signal.
        - out_conf: The estimation confidence for each signal.
        - out_note: An explanatory note for each signal.
-       - live: The face live confidence. Shape (1, n_frames)
+       - live: The face live confidence. Shape (n_frames,)
     """
-    inputs_shape, fps, video_issues = probe_video_inputs(video=frames, fps=fps)
-    video_fits_in_memory = enough_memory_for_ndarray(
-      shape=(inputs_shape[0], self.input_size, self.input_size, 3), dtype=np.uint8)
+    inputs_shape, fps, video_issues = probe_image_inputs(frames, fps=fps)
     # Check the number of frames to be processed
     inputs_n = inputs_shape[0]
     fps_target = override_fps_target if override_fps_target is not None else self.fps_target
     expected_ds_factor = round(fps / fps_target)
     expected_ds_n = math.ceil(inputs_n / expected_ds_factor)
     # Check if we can parse the video globally
+    video_fits_in_memory = enough_memory_for_ndarray(
+      shape=(expected_ds_n, self.input_size, self.input_size, 3), dtype=np.uint8,
+      max_fraction_of_available_memory_to_use=0.1)
     global_face = faces[np.argmin(np.linalg.norm(faces - np.median(faces, axis=0), axis=1))]
     global_roi = get_roi_from_det(
       global_face, roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
@@ -102,9 +104,10 @@ class VitalLensRPPGMethod(RPPGMethod):
     if override_global_parse is not None: global_parse = override_global_parse
     if global_parse:
       # Parse entire video for inference globally
-      frames, _, _, _, idxs = parse_video_inputs(
-        video=frames, fps=fps, target_size=self.input_size, roi=global_roi, target_fps=fps_target,
-        library='prpy', scale_algorithm='bilinear', dim_deltas=(API_OVERLAP, 0, 0))
+      frames, _, _, _, idxs = parse_image_inputs(
+        inputs=frames, fps=fps, roi=global_roi, target_size=self.input_size, target_fps=fps_target,
+        preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
+        trim=None, allow_image=False, videodims=True)
     # Longer videos are split up with small overlaps
     n_splits = 1 if expected_ds_n <= API_MAX_FRAMES else math.ceil((expected_ds_n - API_MAX_FRAMES) / (API_MAX_FRAMES - API_OVERLAP)) + 1
     split_len = expected_ds_n if n_splits == 1 else math.ceil((inputs_n + (n_splits-1) * API_OVERLAP * expected_ds_factor) / n_splits)
@@ -228,10 +231,11 @@ class VitalLensRPPGMethod(RPPGMethod):
         idxs = list(range(0, inputs_shape[0], ds_factor))
     else:
       # Inputs have not been parsed globally. Parse the inputs
-      frames_ds, _, _, ds_factor, idxs = parse_video_inputs(
-        video=inputs, fps=fps, target_size=self.input_size, roi=roi, target_fps=fps_target,
+      frames_ds, _, _, ds_factor, idxs = parse_image_inputs(
+        inputs=inputs, fps=fps, roi=roi, target_size=self.input_size, target_fps=fps_target,
+        preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
         trim=(start, end) if start is not None and end is not None else None,
-        library='prpy', scale_algorithm='bilinear', dim_deltas=(API_OVERLAP, 0, 0))
+        allow_image=False, videodims=True)
     # Make sure we have the correct number of frames
     expected_n = math.ceil(((end-start) if start is not None and end is not None else inputs_shape[0]) / ds_factor)
     if frames_ds.shape[0] != expected_n or len(idxs) != expected_n:

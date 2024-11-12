@@ -23,6 +23,7 @@ import logging
 import math
 import numpy as np
 import os
+from prpy.numpy.image import parse_image_inputs
 from prpy.numpy.signal import interpolate_vals
 import sys
 from typing import Tuple
@@ -31,8 +32,6 @@ if sys.version_info >= (3, 9):
   from importlib.resources import files
 else:
   from importlib_resources import files
-
-from vitallens.utils import parse_video_inputs
 
 INPUT_SIZE = (240, 320)
 MAX_SCAN_FRAMES = 60
@@ -299,9 +298,10 @@ class FaceDetector:
     """
     logging.debug("Batch {}/{}...".format(batch, n_batches))
     # Parse the inputs
-    inputs, fps, _, _, idxs = parse_video_inputs(
-      video=inputs, fps=fps, target_size=INPUT_SIZE, target_fps=self.fs,
-      library='prpy', scale_algorithm='bilinear', trim=(start, end))
+    inputs, fps, _, _, idxs = parse_image_inputs(
+      inputs=inputs, fps=fps, roi=None, target_size=INPUT_SIZE, target_fps=self.fs,
+      preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
+      trim=(start, end), allow_image=False, videodims=True)
     # Forward pass
     onnx_inputs = {"args_0": (inputs.astype(np.float32) - 127.0) / 128.0}
     onnx_outputs = self.model.run(None, onnx_inputs)[0]

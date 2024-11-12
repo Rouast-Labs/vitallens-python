@@ -25,6 +25,7 @@ import logging
 import numpy as np
 import os
 from prpy.constants import SECONDS_PER_MINUTE
+from prpy.numpy.image import probe_image_inputs
 from typing import Union
 
 from vitallens.constants import DISCLAIMER
@@ -36,7 +37,7 @@ from vitallens.methods.pos import POSRPPGMethod
 from vitallens.methods.vitallens import VitalLensRPPGMethod
 from vitallens.signal import windowed_freq, windowed_mean
 from vitallens.ssd import FaceDetector
-from vitallens.utils import load_config, probe_video_inputs, check_faces, convert_ndarray_to_list
+from vitallens.utils import load_config, check_faces, convert_ndarray_to_list
 
 class Method(IntEnum):
   VITALLENS = 1
@@ -118,10 +119,10 @@ class VitalLens:
         video file. Note that aggressive video encoding destroys the rPPG signal.
       faces: Face boxes in flat point form, containing [x0, y0, x1, y1] coords.
         Ignored unless detect_faces=False. Pass a list or np.ndarray of
-        shape (n_faces, n_frames, 4) for multiple faces detected on multiple frames,
-        shape (n_frames, 4) for single face detected on mulitple frames, or
-        shape (4,) for a single face detected globally, or
-        `None` to assume all frames already cropped to the same single face detection.
+        - shape (n_faces, n_frames, 4) for multiple faces detected on multiple frames,
+        - shape (n_frames, 4) for single face detected on mulitple frames, or
+        - shape (4,) for a single face detected globally, or
+        - `None` to assume all frames already cropped to the same single face detection.
       fps: Sampling frequency of the input video. Required if type(video) == np.ndarray. 
       override_fps_target: Target fps at which rPPG inference should be run (optional).
         If not provided, will use default of the selected method.
@@ -172,7 +173,7 @@ class VitalLens:
         ]
     """
     # Probe inputs
-    inputs_shape, fps, _ = probe_video_inputs(video=video, fps=fps)
+    inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
     # TODO: Optimize performance of simple rPPG methods for long videos
     # Warning if using long video
     target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
