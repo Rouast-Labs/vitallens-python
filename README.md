@@ -189,8 +189,7 @@ result = vl(my_video_arr, fps=my_video_fps)
 ### Example: Run example script with Docker
 
 If you encounter issues installing `vitallens-python` dependencies directly, you can use our Docker image, which contains all necessary tools and libraries.
-This docker image is set up to execute the example Python script in `examples/test.py` for you.
-Please note that the example script plots won't work when running them through Docker. 
+This docker image is set up to execute the example Python script in `examples/test.py` for you. 
 
 #### Prerequisites
 
@@ -229,6 +228,16 @@ docker run vitallens \
   --api_key "your_api_key_here" \
   --video_path "path/to/your/video.mp4" \
   --method "VITALLENS"
+```
+
+4. View the results
+
+The results will print to the console in text form.
+
+Please note that the example script plots won't work when running them through Docker. To to get the plot as an image file, run:
+
+```
+docker cp <container_id>:/app/results.png .
 ```
 
 ## Linting and tests

@@ -83,6 +83,7 @@ def run(args=None):
   ax1.legend()
   if 'respiratory_waveform' in vital_signs: ax2.legend()
   plt.show()
+  plt.savefig('results.png')
 
 def method_type(name):
   try:
