@@ -22,11 +22,10 @@ import base64
 import concurrent.futures
 import math
 import numpy as np
-from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.signal import detrend, moving_average, standardize
-from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
+from prpy.numpy.signal import interpolate_cubic_spline
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -34,12 +33,12 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
-from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
+from vitallens.enums import Mode
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
-from vitallens.signal import reassemble_from_windows
+from vitallens.signal import reassemble_from_windows, assemble_results
 from vitallens.utils import check_faces_in_roi
 
 class VitalLensRPPGMethod(RPPGMethod):
@@ -47,22 +46,25 @@ class VitalLensRPPGMethod(RPPGMethod):
   def __init__(
       self,
       config: dict,
+      mode: Mode,
       api_key: str
     ):
     """Initialize the `VitalLensRPPGMethod`
     
     Args:
       config: The configuration dict
+      mode: The operation mode
       api_key: The API key
     """
-    super(VitalLensRPPGMethod, self).__init__(config=config)
+    super(VitalLensRPPGMethod, self).__init__(config=config, mode=mode)
     self.api_key = api_key
+    self.model = config['model']
     self.input_size = config['input_size']
     self.roi_method = config['roi_method']
     self.signals = config['signals']
   def __call__(
       self,
-      frames: Union[np.ndarray, str],
+      inputs: Union[np.ndarray, str],
       faces: np.ndarray,
       fps: float = None,
       override_fps_target: float = None,
@@ -71,7 +73,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     """Estimate vitals from video frames using the VitalLens API.
 
     Args:
-      frames: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+      inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         in unscaled uint8 RGB format, or a path to a video file.
       faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
@@ -86,7 +88,7 @@ class VitalLensRPPGMethod(RPPGMethod):
        - out_note: An explanatory note for each signal.
        - live: The face live confidence. Shape (n_frames,)
     """
-    inputs_shape, fps, video_issues = probe_image_inputs(frames, fps=fps)
+    inputs_shape, fps, video_issues = probe_image_inputs(inputs, fps=fps)
     # Check the number of frames to be processed
     inputs_n = inputs_shape[0]
     fps_target = override_fps_target if override_fps_target is not None else self.fps_target
@@ -100,14 +102,16 @@ class VitalLensRPPGMethod(RPPGMethod):
     global_roi = get_roi_from_det(
       global_face, roi_method=self.roi_method, clip_dims=(inputs_shape[2], inputs_shape[1]))
     global_faces_in_roi = check_faces_in_roi(faces=faces, roi=global_roi, percentage_required_inside_roi=(0.6, 1.0))
-    global_parse = isinstance(frames, str) and video_fits_in_memory and (video_issues or global_faces_in_roi)
+    global_parse = isinstance(inputs, str) and video_fits_in_memory and (video_issues or global_faces_in_roi)
     if override_global_parse is not None: global_parse = override_global_parse
     if global_parse:
       # Parse entire video for inference globally
       frames, _, _, _, idxs = parse_image_inputs(
-        inputs=frames, fps=fps, roi=global_roi, target_size=self.input_size, target_fps=fps_target,
+        inputs=inputs, fps=fps, roi=global_roi, target_size=self.input_size, target_fps=fps_target,
         preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
         trim=None, allow_image=False, videodims=True)
+    else:
+      frames = inputs
     # Longer videos are split up with small overlaps
     n_splits = 1 if expected_ds_n <= API_MAX_FRAMES else math.ceil((expected_ds_n - API_MAX_FRAMES) / (API_MAX_FRAMES - API_OVERLAP)) + 1
     split_len = expected_ds_n if n_splits == 1 else math.ceil((inputs_n + (n_splits-1) * API_OVERLAP * expected_ds_factor) / n_splits)
@@ -127,51 +131,24 @@ class VitalLensRPPGMethod(RPPGMethod):
     sig_ds, idxs = reassemble_from_windows(x=sig_results, idxs=idxs_results)
     conf_ds, _ = reassemble_from_windows(x=conf_results, idxs=idxs_results)
     live_ds = reassemble_from_windows(x=np.asarray(live_results)[:,np.newaxis], idxs=idxs_results)[0][0]
-    # Interpolate to original sampling rate (n_frames,)
+    # Interpolate to original sampling rate
     sig = interpolate_cubic_spline(
       x=idxs, y=sig_ds, xs=np.arange(inputs_n), axis=1)
     conf = interpolate_cubic_spline(
       x=idxs, y=conf_ds, xs=np.arange(inputs_n), axis=1)
     live = interpolate_cubic_spline(
       x=idxs, y=live_ds, xs=np.arange(inputs_n), axis=0)
-    # Filter (n_frames,)
+    # Filter (2, n_frames)
     sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
-    # Estimate summary vitals
-    hr = estimate_freq(
-      sig[0], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-      f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
-      method='periodogram') * SECONDS_PER_MINUTE
-    rr = estimate_freq(
-      sig[1], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-      f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
-      method='periodogram') * SECONDS_PER_MINUTE
-    # Confidences
-    hr_conf = float(np.mean(conf[0]))
-    rr_conf = float(np.mean(conf[1]))
-    # Assemble results
-    out_data, out_unit, out_conf, out_note = {}, {}, {}, {}
-    for name in self.signals:
-      if name == 'heart_rate':
-        out_data[name] = hr
-        out_unit[name] = 'bpm'
-        out_conf[name] = hr_conf
-        out_note[name] = 'Estimate of the global heart rate using VitalLens, along with a confidence level between 0 and 1.'
-      elif name == 'respiratory_rate':
-        out_data[name] = rr
-        out_unit[name] = 'bpm'
-        out_conf[name] = rr_conf
-        out_note[name] = 'Estimate of the global respiratory rate using VitalLens, along with a confidence level between 0 and 1.'
-      elif name == 'ppg_waveform':
-        out_data[name] = sig[0]
-        out_unit[name] = 'unitless'
-        out_conf[name] = conf[0]
-        out_note[name] = 'Estimate of the ppg waveform using VitalLens, along with frame-wise confidences between 0 and 1.'
-      elif name == 'respiratory_waveform':
-        out_data[name] = sig[1]
-        out_unit[name] = 'unitless'
-        out_conf[name] = conf[1]
-        out_note[name] = 'Estimate of the respiratory waveform using VitalLens, along with frame-wise confidences between 0 and 1.'
-    return out_data, out_unit, out_conf, out_note, live
+    # Assemble and return the results
+    return assemble_results(sig=sig,
+                            conf=conf,
+                            live=live,
+                            fps=fps,
+                            train_sig_names=['ppg_waveform', 'respiratory_waveform'],
+                            pred_signals=self.signals,
+                            method_name=self.model,
+                            can_provide_confidence=True)
   def process_api_batch(
       self,
       batch: int,

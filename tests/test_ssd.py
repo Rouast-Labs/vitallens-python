@@ -141,13 +141,13 @@ def test_FaceDetector(request, file):
     test_video_shape = request.getfixturevalue('test_video_shape')
     test_video_fps = request.getfixturevalue('test_video_fps')
     boxes, info = det(inputs=test_video_path,
-                      inputs_shape=test_video_shape,
+                      n_frames=test_video_shape[0],
                       fps=test_video_fps)
   else:
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
     boxes, info = det(inputs=test_video_ndarray,
-                      inputs_shape=test_video_ndarray.shape,
+                      n_frames=test_video_ndarray.shape[0],
                       fps=test_video_fps)
   assert boxes.shape == (360, 1, 4)
   assert info.shape == (360, 1, 4)

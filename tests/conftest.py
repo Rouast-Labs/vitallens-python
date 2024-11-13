@@ -62,7 +62,7 @@ def test_video_faces(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   boxes, _ = det(test_video_ndarray,
-                 inputs_shape=test_video_ndarray.shape,
+                 n_frames=test_video_ndarray.shape[0],
                  fps=test_video_fps)
   boxes = (boxes * [test_video_ndarray.shape[2], test_video_ndarray.shape[1], test_video_ndarray.shape[2], test_video_ndarray.shape[1]]).astype(int)
   return boxes[:,0].astype(np.int64)

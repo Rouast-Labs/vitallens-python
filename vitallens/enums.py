@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2024 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import abc
+from enum import IntEnum
 
-from vitallens.enums import Mode
+class Method(IntEnum):
+  VITALLENS = 1
+  G = 2
+  CHROM = 3
+  POS = 4
 
-class RPPGMethod(metaclass=abc.ABCMeta):
-  """Abstract superclass for rPPG methods"""
-  def __init__(
-      self,
-      config: dict,
-      mode: Mode
-    ):
-    """Initialize the `RPPGMethod`
-    
-    Args:
-      config: The configuration dict
-      mode: The operation mode
-    """
-    self.fps_target = config['fps_target']
-    self.op_mode = mode
-    self.est_window_length = config['est_window_length']
-    self.est_window_overlap = config['est_window_overlap']
-    self.est_window_flexible = self.est_window_length == 0
-  @abc.abstractmethod
-  def __call__(self, frames, faces, fps, override_fps_target, override_global_parse):
-    """Run inference. Abstract method to be implemented in subclasses."""
-    pass
+class Mode(IntEnum):
+  BATCH = 1
+  BURST = 2
