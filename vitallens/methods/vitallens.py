@@ -62,6 +62,8 @@ class VitalLensRPPGMethod(RPPGMethod):
     self.input_size = config['input_size']
     self.roi_method = config['roi_method']
     self.signals = config['signals']
+    if mode == Mode.BURST:
+      self.state = None
   def __call__(
       self,
       inputs: Union[np.ndarray, str],
@@ -92,9 +94,9 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Check the number of frames to be processed
     inputs_n = inputs_shape[0]
     fps_target = override_fps_target if override_fps_target is not None else self.fps_target
-    expected_ds_factor = round(fps / fps_target)
+    expected_ds_factor = max(round(fps / fps_target), 1)
     expected_ds_n = math.ceil(inputs_n / expected_ds_factor)
-    # Check if we can parse the video globally
+    # Check if we should parse the video globally
     video_fits_in_memory = enough_memory_for_ndarray(
       shape=(expected_ds_n, self.input_size, self.input_size, 3), dtype=np.uint8,
       max_fraction_of_available_memory_to_use=0.1)
@@ -220,6 +222,8 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Prepare API header and payload
     headers = {"x-api-key": self.api_key}
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8')}
+    if self.op_mode == Mode.BURST and self.state is not None:
+      payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
     # Ask API to process video
     response = requests.post(API_URL, headers=headers, json=payload)
     response_body = json.loads(response.text)
@@ -244,6 +248,8 @@ class VitalLensRPPGMethod(RPPGMethod):
       np.asarray(response_body["vital_signs"]["respiratory_waveform"]["confidence"]),
     ], axis=0)
     live_ds = np.asarray(response_body["face"]["confidence"])
+    if self.op_mode == Mode.BURST:
+      self.state = np.asarray(response_body["state"]["data"], dtype=np.float32)
     idxs = np.asarray(idxs)
     return sig_ds, conf_ds, live_ds, idxs
   def postprocess(
@@ -283,3 +289,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Return
     assert sig.shape == (n_frames,)
     return sig
+  def reset(self):
+    """Reset"""
+    if self.op_mode == Mode.BURST:
+      self.state = None

@@ -12,6 +12,7 @@ import warnings
 sys.path.append('../vitallens-python')
 from vitallens import VitalLens, Mode, Method
 from vitallens.buffer import SignalBuffer, MultiSignalBuffer
+from vitallens.constants import API_MIN_FRAMES
 
 def draw_roi(frame, roi):
   roi = np.asarray(roi).astype(np.int32)
@@ -70,7 +71,6 @@ class VitalLensRunnable:
     self.active.clear()
 
 def run(args):
-  """TODO"""
   cap = cv2.VideoCapture(0)
   executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
   vl = VitalLensRunnable(method=args.method, api_key=args.api_key)
@@ -129,9 +129,8 @@ def run(args):
         roi = None
         signal_buffer.clear()
       # Start next prediction
-      if len(frame_buffer) > 0:
+      if len(frame_buffer) >= (API_MIN_FRAMES if args.method == Method.VITALLENS else 1):
         n_frames = len(frame_buffer)
-        # print("New frames for prediction: {} @ pred_fps={:.2f} / ds_factor={}".format(n_frames, p_fps, ds_factor))
         future = executor.submit(vl, frame_buffer.copy(), fps)
         frame_buffer.clear()
     # Sample frames

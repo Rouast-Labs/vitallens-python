@@ -44,3 +44,8 @@ class RPPGMethod(metaclass=abc.ABCMeta):
   def __call__(self, frames, faces, fps, override_fps_target, override_global_parse):
     """Run inference. Abstract method to be implemented in subclasses."""
     pass
+  @abc.abstractmethod
+  def reset(self):
+    """Reset. Abstract method to be implemented in subclasses."""
+    pass
+  

@@ -132,3 +132,7 @@ class SimpleRPPGMethod(RPPGMethod):
                             pred_signals=self.signals,
                             method_name=self.model,
                             can_provide_confidence=False)
+  def reset(self):
+    """Reset"""
+    if self.op_mode == Mode.BURST:
+      self.buffer.clear()

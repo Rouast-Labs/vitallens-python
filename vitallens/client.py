@@ -27,7 +27,7 @@ from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.image import probe_image_inputs
 from typing import Union
 
-from vitallens.constants import DISCLAIMER
+from vitallens.constants import DISCLAIMER, API_MAX_FRAMES
 from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_HR_WINDOW_SIZE
 from vitallens.constants import CALC_RR_MIN, CALC_RR_MAX, CALC_RR_WINDOW_SIZE
 from vitallens.enums import Method, Mode
@@ -173,6 +173,8 @@ class VitalLens:
     # Probe inputs
     if self.mode == Mode.BURST and not isinstance(video, np.ndarray):
       raise ValueError("Must provide `np.ndarray` inputs for burst mode.")
+    if self.mode == Mode.BURST and video.shape[0] > API_MAX_FRAMES:
+      raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES}, but received {video.shape[0]}.")
     inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
     # TODO: Optimize performance of simple rPPG methods for long videos
     # Warning if using long video
@@ -195,7 +197,7 @@ class VitalLens:
       # Face axis first
       faces = np.transpose(faces, (1, 0, 2))
     # Check if the faces are valid
-    faces = check_faces(faces, inputs_shape)  
+    faces = check_faces(faces, inputs_shape)
     # Run separately for each face
     results = []
     for face in faces:
@@ -263,3 +265,6 @@ class VitalLens:
       with open(os.path.join(self.export_dir, export_filename), 'w') as f:
         json.dump(convert_ndarray_to_list(results), f, indent=4)
     return results
+  def reset(self):
+    """Reset"""
+    self.rppg.reset()
