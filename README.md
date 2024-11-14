@@ -57,6 +57,7 @@ It can be configured using the following parameters:
 | Parameter               | Description                                                                        | Default            |
 |-------------------------|------------------------------------------------------------------------------------|--------------------|
 | method                  | Inference method. {`Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`} | `Method.VITALLENS` |
+| mode                    | Operation mode. {`Mode.BATCH` for indep. videos or `Mode.BURST` for video stream}  | `Mode.BATCH`       |
 | api_key                 | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
 | detect_faces            | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
 | estimate_running_vitals | Set `True` to compute running vitals (e.g., `running_heart_rate`).                 | `True`             |
@@ -66,7 +67,8 @@ It can be configured using the following parameters:
 | export_dir              | The directory to which json files are written.                                     | `.`                |
 
 Once instantiated, `vitallens.VitalLens` can be called to estimate vitals.
-This can also be configured using the following parameters:
+In `Mode.BATCH` calls are assumed to be working on independent videos, whereas in `Mode.BURST` we expect the subsequent calls to pass the next frames of the same video (stream) as `np.ndarray`.
+Calls are configured using the following parameters:
 
 | Parameter           | Description                                                                           | Default |
 |---------------------|---------------------------------------------------------------------------------------|---------|
@@ -148,15 +150,32 @@ If the video is long enough and `estimate_running_vitals=True`, the results addi
 ]
 ```
 
+## Example: Live test with webcam in real-time
+
+Test `vitallens` in real-time with your webcam using the script `examples/live.py`.
+This uses `Mode.BURST` to update results continuously (approx. every 2 seconds for `Method.VITALLENS`).
+Some options are available:
+
+- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
+- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+
+May need to install requirements first: `pip install opencv-python`
+
+```
+python examples/live.py --method=VITALLENS --api_key=YOUR_API_KEY
+```
+
 ### Example: Compare results with gold-standard labels using our example script
 
-There is an example Python script in `examples/test.py` which lets you run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
+There is an example Python script in `examples/test.py` which uses `Mode.BATCH` to run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
 Some options are available:
 
 - `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
 - `video_path`: Path to video (Default: `examples/sample_video_1.mp4`)
 - `vitals_path`: Path to gold-standard vitals (Default: `examples/sample_vitals_1.csv`)
 - `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+
+May need to install requirements first: `pip install matplotlib pandas`
 
 For example, to reproduce the results from the banner image on the [VitalLens API Webpage](https://www.rouast.com/api/):
 
