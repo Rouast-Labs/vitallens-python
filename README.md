@@ -150,7 +150,9 @@ If the video is long enough and `estimate_running_vitals=True`, the results addi
 ]
 ```
 
-## Example: Live test with webcam in real-time
+## Examples to get started
+
+### Live test with webcam in real-time
 
 Test `vitallens` in real-time with your webcam using the script `examples/live.py`.
 This uses `Mode.BURST` to update results continuously (approx. every 2 seconds for `Method.VITALLENS`).
@@ -165,7 +167,7 @@ May need to install requirements first: `pip install opencv-python`
 python examples/live.py --method=VITALLENS --api_key=YOUR_API_KEY
 ```
 
-### Example: Compare results with gold-standard labels using our example script
+### Compare results with gold-standard labels using our example script
 
 There is an example Python script in `examples/test.py` which uses `Mode.BATCH` to run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
 Some options are available:
@@ -185,7 +187,7 @@ python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.
 
 This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
 
-### Example: Use VitalLens API to estimate vitals from a video file
+### Use VitalLens API to estimate vitals from a video file
 
 ```python
 from vitallens import VitalLens, Method
@@ -194,7 +196,7 @@ vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
 result = vl("video.mp4")
 ```
 
-### Example: Use POS method on an `np.ndarray` of video frames
+### Use POS method on an `np.ndarray` of video frames
 
 ```python
 from vitallens import VitalLens, Method
@@ -205,7 +207,7 @@ vl = VitalLens(method=Method.POS)
 result = vl(my_video_arr, fps=my_video_fps)
 ```
 
-### Example: Run example script with Docker
+### Run example script with Docker
 
 If you encounter issues installing `vitallens-python` dependencies directly, you can use our Docker image, which contains all necessary tools and libraries.
 This docker image is set up to execute the example Python script in `examples/test.py` for you. 
