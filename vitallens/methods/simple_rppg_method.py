@@ -20,31 +20,36 @@
 
 import abc
 import numpy as np
-from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi, parse_image_inputs
-from prpy.numpy.signal import interpolate_cubic_spline, estimate_freq
+from prpy.numpy.signal import interpolate_cubic_spline
 from typing import Union, Tuple
 
-from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX
+from vitallens.buffer import SignalBuffer
+from vitallens.enums import Mode
 from vitallens.methods.rppg_method import RPPGMethod
+from vitallens.signal import assemble_results
 from vitallens.utils import merge_faces
 
 class SimpleRPPGMethod(RPPGMethod):
   """A simple rPPG method using a handcrafted algorithm based on RGB signal trace"""
   def __init__(
       self,
-      config: dict
+      config: dict,
+      mode: Mode
     ):
     """Initialize the `SimpleRPPGMethod`
     
     Args:
       config: The configuration dict
+      mode: The operation mode
     """
-    super(SimpleRPPGMethod, self).__init__(config=config)
+    super(SimpleRPPGMethod, self).__init__(config=config, mode=mode)
     self.model = config['model']
     self.roi_method = config['roi_method']
     self.signals = config['signals']
+    if mode == Mode.BURST:
+      self.buffer = SignalBuffer(size=self.est_window_length, ndim=2)
   @abc.abstractmethod
   def algorithm(
       self,
@@ -62,7 +67,7 @@ class SimpleRPPGMethod(RPPGMethod):
     pass
   def __call__(
       self,
-      frames: Union[np.ndarray, str], # TODO: Rename to `video`
+      inputs: Union[np.ndarray, str],
       faces: np.ndarray,
       fps: float,
       override_fps_target: float = None,
@@ -71,7 +76,7 @@ class SimpleRPPGMethod(RPPGMethod):
     """Estimate pulse signal from video frames using the subclass algorithm.
 
     Args:
-      frames: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
+      inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         in unscaled uint8 RGB format, or a path to a video file.
       faces: The face detection boxes as np.int64. Shape (n_frames, 4) in form (x0, y0, x1, y1)
       fps: The rate at which video was sampled.
@@ -90,7 +95,7 @@ class SimpleRPPGMethod(RPPGMethod):
     faces = faces - [u_roi[0], u_roi[1], u_roi[0], u_roi[1]]
     # Parse the inputs
     frames_ds, fps, inputs_shape, ds_factor, _ = parse_image_inputs(
-      inputs=frames, fps=fps, roi=u_roi, target_size=None,
+      inputs=inputs, fps=fps, roi=u_roi, target_size=None,
       target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
       preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
       trim=None, allow_image=False, videodims=True)
@@ -99,32 +104,35 @@ class SimpleRPPGMethod(RPPGMethod):
     assert frames_ds.shape[0] == faces_ds.shape[0], "Need same number of frames as face detections"
     fps_ds = fps*1.0/ds_factor
     # Extract rgb signal (n_frames_ds, 3)
-    roi_ds = np.asarray([get_roi_from_det(f, roi_method=self.roi_method) for f in faces_ds], dtype=np.int64) # roi for each frame (n, 4)
-    rgb_ds = reduce_roi(video=frames_ds, roi=roi_ds)
+    if self.op_mode == Mode.BATCH:
+      roi_ds = np.asarray([get_roi_from_det(f, roi_method=self.roi_method) for f in faces_ds], dtype=np.int64) # roi for each frame (n, 4)
+      rgb_ds = reduce_roi(video=frames_ds, roi=roi_ds)
+    else:
+      # Use the last face detection for cropping (n_frames, 3)
+      rgb_ds = reduce_roi(video=frames_ds, roi=np.asarray(get_roi_from_det(faces_ds[-1], roi_method=self.roi_method), dtype=np.int64))
+      # Push to buffer and get buffered vals (pred_window_length, 3)
+      rgb_ds = self.buffer.update(rgb_ds, dt=inputs.shape[0])
     # Perform rppg algorithm step (n_frames_ds,)
     sig_ds = self.algorithm(rgb_ds, fps_ds)
     # Interpolate to original sampling rate (n_frames,)
     sig = interpolate_cubic_spline(
       x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
-    # Filter (n_frames,)
+    # Filter and add dim (1, n_frames)
     sig = self.pulse_filter(sig, fps)
-    # Estimate HR
-    hr = estimate_freq(
-      sig, f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-      f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
-      method='periodogram') * SECONDS_PER_MINUTE
-    # Assemble results
-    data, unit, conf, note = {}, {}, {}, {}
-    for name in self.signals:
-      if name == 'heart_rate':
-        data[name] = hr
-        unit[name] = 'bpm'
-        conf[name] = 1.0
-        note[name] = 'Estimate of the global heart rate using {} method. This method is not capable of providing a confidence estimate, hence returning 1.'.format(self.model)
-      elif name == 'ppg_waveform':
-        data[name] = sig
-        unit[name] = 'unitless'
-        conf[name] = np.ones_like(sig)
-        note[name] = 'Estimate of the ppg waveform using {} method. This method is not capable of providing a confidence estimate, hence returning 1.'.format(self.model)
-    # Return results
-    return data, unit, conf, note, np.ones_like(sig)
+    sig = np.expand_dims(sig, axis=0)
+    # Simple rPPG method cannot specify confidence or live. Set to always 1.
+    conf = np.ones_like(sig)
+    live = np.ones_like(sig[0])
+    # Assemble and return the results
+    return assemble_results(sig=sig,
+                            conf=conf,
+                            live=live,
+                            fps=fps,
+                            train_sig_names=['ppg_waveform'],
+                            pred_signals=self.signals,
+                            method_name=self.model,
+                            can_provide_confidence=False)
+  def reset(self):
+    """Reset"""
+    if self.op_mode == Mode.BURST:
+      self.buffer.clear()

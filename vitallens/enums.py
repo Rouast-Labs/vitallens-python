@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2024 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-###############################################################################
-#                      Settings for vitallens method                          #
-###############################################################################
+from enum import IntEnum
 
-##### Model settings #####
-# The model name
-model: 'vitallens'
-# Size of the input
-input_size: 40
-# Number of inputs
-n_inputs: 4
-# List estimated signals
-signals: ['heart_rate', 'respiratory_rate', 'ppg_waveform', 'respiratory_waveform']
+class Method(IntEnum):
+  VITALLENS = 1
+  G = 2
+  CHROM = 3
+  POS = 4
 
-##### rPPG settings #####
-# The ROI used as model input
-roi_method: 'upper_body_cropped'
-# The target sampling frequency [Hz]
-fps_target: 30
-# Overlap of windows during estimation
-est_window_overlap: 0
-# Size of window during estimation
-est_window_length: 0
+class Mode(IntEnum):
+  BATCH = 1
+  BURST = 2

@@ -24,6 +24,7 @@ import pytest
 import sys
 sys.path.append('../vitallens-python')
 
+from vitallens.enums import Mode
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
@@ -32,7 +33,7 @@ from vitallens.utils import load_config
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_CHROMRPPGMethod(request, override_fps_target):
   config = load_config("chrom.yaml")
-  method = CHROMRPPGMethod(config)
+  method = CHROMRPPGMethod(config=config, mode=Mode.BATCH)
   res = method.algorithm(np.random.rand(100, 3), fps=30.)
   assert res.shape == (100,)
   res = method.pulse_filter(res, fps=30.)
@@ -41,7 +42,7 @@ def test_CHROMRPPGMethod(request, override_fps_target):
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
   data, unit, conf, note, live = method(
-    frames=test_video_ndarray, faces=test_video_faces,
+    inputs=test_video_ndarray, faces=test_video_faces,
     fps=test_video_fps, override_fps_target=override_fps_target)
   assert all(key in data for key in method.signals)
   assert all(key in unit for key in method.signals)
@@ -56,7 +57,7 @@ def test_CHROMRPPGMethod(request, override_fps_target):
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_GRPPGMethod(request, override_fps_target):
   config = load_config("g.yaml")
-  method = GRPPGMethod(config)
+  method = GRPPGMethod(config=config, mode=Mode.BATCH)
   res = method.algorithm(np.random.rand(100, 3), fps=30.)
   assert res.shape == (100,)
   res = method.pulse_filter(res, fps=30.)
@@ -65,7 +66,7 @@ def test_GRPPGMethod(request, override_fps_target):
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
   data, unit, conf, note, live = method(
-    frames=test_video_ndarray, faces=test_video_faces,
+    inputs=test_video_ndarray, faces=test_video_faces,
     fps=test_video_fps, override_fps_target=override_fps_target)
   assert all(key in data for key in method.signals)
   assert all(key in unit for key in method.signals)
@@ -80,7 +81,7 @@ def test_GRPPGMethod(request, override_fps_target):
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_POSRPPGMethod(request, override_fps_target):
   config = load_config("pos.yaml")
-  method = POSRPPGMethod(config)
+  method = POSRPPGMethod(config=config, mode=Mode.BATCH)
   res = method.algorithm(np.random.rand(100, 3), fps=30.)
   assert res.shape == (100,)
   res = method.pulse_filter(res, fps=30.)
@@ -89,7 +90,7 @@ def test_POSRPPGMethod(request, override_fps_target):
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
   data, unit, conf, note, live = method(
-    frames=test_video_ndarray, faces=test_video_faces,
+    inputs=test_video_ndarray, faces=test_video_faces,
     fps=test_video_fps, override_fps_target=override_fps_target)
   assert all(key in data for key in method.signals)
   assert all(key in unit for key in method.signals)

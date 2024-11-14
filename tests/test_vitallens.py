@@ -30,6 +30,7 @@ import sys
 sys.path.append('../vitallens-python')
 
 from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_URL
+from vitallens.enums import Mode
 from vitallens.methods.vitallens import VitalLensRPPGMethod
 from vitallens.utils import load_config
 
@@ -106,10 +107,12 @@ def test_VitalLensRPPGMethod_mock(mock_post, request, file, long, override_fps_t
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  method = VitalLensRPPGMethod(config, api_key=api_key)
+  method = VitalLensRPPGMethod(config=config,
+                               mode=Mode.BATCH,
+                               api_key=api_key)
   if file:
     data, unit, conf, note, live = method(
-      frames=test_video_path, faces=test_video_faces,
+      inputs=test_video_path, faces=test_video_faces,
       override_fps_target=override_fps_target,
       override_global_parse=override_global_parse)
   else:
@@ -118,7 +121,7 @@ def test_VitalLensRPPGMethod_mock(mock_post, request, file, long, override_fps_t
       test_video_ndarray = np.repeat(test_video_ndarray, repeats=n_repeats, axis=0)
       test_video_faces = np.repeat(test_video_faces, repeats=n_repeats, axis=0)
     data, unit, conf, note, live = method(
-      frames=test_video_ndarray, faces=test_video_faces,
+      inputs=test_video_ndarray, faces=test_video_faces,
       fps=test_video_fps, override_fps_target=override_fps_target,
       override_global_parse=override_global_parse)
   assert all(key in data for key in method.signals)
@@ -132,7 +135,8 @@ def test_VitalLensRPPGMethod_mock(mock_post, request, file, long, override_fps_t
   assert live.shape == (test_video_ndarray.shape[0],)
 
 @pytest.mark.parametrize("process_signals", [True, False])
-def test_VitalLens_API_valid_response(request, process_signals):
+@pytest.mark.parametrize("n_frames", [16, 250])
+def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   config = load_config("vitallens.yaml")
   api_key = request.getfixturevalue('test_dev_api_key')
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
@@ -142,7 +146,7 @@ def test_VitalLens_API_valid_response(request, process_signals):
     inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": api_key}
-  payload = {"video": base64.b64encode(frames[:16].tobytes()).decode('utf-8')}
+  payload = {"video": base64.b64encode(frames[:n_frames].tobytes()).decode('utf-8')}
   if process_signals: payload['fps'] = str(30)
   response = requests.post(API_URL, headers=headers, json=payload)
   response_body = json.loads(response.text)
@@ -154,13 +158,14 @@ def test_VitalLens_API_valid_response(request, process_signals):
   ppg_waveform_conf = np.asarray(response_body["vital_signs"]["ppg_waveform"]["confidence"])
   resp_waveform_data = np.asarray(response_body["vital_signs"]["respiratory_waveform"]["data"])
   resp_waveform_conf = np.asarray(response_body["vital_signs"]["respiratory_waveform"]["confidence"])
-  assert ppg_waveform_data.shape == (16,)
-  assert ppg_waveform_conf.shape == (16,)
-  assert resp_waveform_data.shape == (16,)
-  assert resp_waveform_conf.shape == (16,)
-  assert all((key in vital_signs) if process_signals else (key not in vital_signs) for key in ["heart_rate", "respiratory_rate"])
+  assert ppg_waveform_data.shape == (n_frames,)
+  assert ppg_waveform_conf.shape == (n_frames,)
+  assert resp_waveform_data.shape == (n_frames,)
+  assert resp_waveform_conf.shape == (n_frames,)
+  t = n_frames/test_video_fps 
+  assert all((key in vital_signs) if (process_signals and t > 8.) else (key not in vital_signs) for key in ["heart_rate", "respiratory_rate"])
   live = np.asarray(response_body["face"]["confidence"])
-  assert live.shape == (16,)
+  assert live.shape == (n_frames,)
   state = np.asarray(response_body["state"]["data"])
   assert state.shape == (2, 128)
 

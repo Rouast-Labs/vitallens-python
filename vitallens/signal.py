@@ -24,7 +24,7 @@ from prpy.numpy.signal import moving_average_size_for_response, estimate_freq
 from prpy.numpy.stride_tricks import window_view, resolve_1d_window_view
 from typing import Tuple, Union
 
-from vitallens.constants import CALC_HR_MAX, CALC_RR_MAX
+from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 
 def moving_average_size_for_hr_response(
     f_s: Union[float, int]
@@ -179,3 +179,74 @@ def reassemble_from_windows(
   result = x.reshape(x.shape[0], -1)[:,mask]
   idxs = idxs.flatten()[mask]
   return result, idxs
+
+def assemble_results(
+    sig: np.ndarray,
+    conf: np.ndarray,
+    live: np.ndarray,
+    fps: float,
+    train_sig_names: list,
+    pred_signals: list,
+    method_name: str,
+    can_provide_confidence: bool = True,
+    min_t_hr: float = 2.,
+    min_t_rr: float = 4.
+  ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
+  """Assemble rPPG method results in the format expected by the API.
+  Args:
+    sig: The estimated signals. Shape (n_sig, n_frames)
+    conf: The estimation confidence. Shape (n_sig, n_frames)
+    live: The liveness confidence. Shape (n_frames,)
+    fps: The sampling rate
+    train_sig_names: The train signal names of the method
+    pred_signals: The pred signals specs of the method
+    method_name: The name of the method
+    can_provide_confidence: Whether the method can provide a confidence estimate
+    min_t_hr: Minimum amount of time signal to estimate hr
+    min_t_rr: Minimum amount of time signal to estimate rr
+  Returns:
+    Tuple of
+       - out_data: The estimated data/value for each signal.
+       - out_unit: The estimation unit for each signal.
+       - out_conf: The estimation confidence for each signal.
+       - out_note: An explanatory note for each signal.
+       - live: The face live confidence. Shape (n_frames,)
+  """
+  # Infer the signal length in seconds
+  sig_t = sig.shape[1] / fps
+  # Get the names of signals model outputs
+  out_data, out_unit, out_conf, out_note = {}, {}, {}, {}
+  confidence_note_scalar = ', along with a confidence level between 0 and 1.' if can_provide_confidence else '. This method is not capable of providing a confidence estimate, hence returning 1.'
+  confidence_note_data = ', along with frame-wise confidences between 0 and 1.' if can_provide_confidence else '. This method is not capable of providing a confidence estimate, hence returning 1.'
+  for name in pred_signals:
+    if name == 'heart_rate' and 'ppg_waveform' in train_sig_names and sig_t > min_t_hr:
+      ppg_ir_idx = train_sig_names.index('ppg_waveform')
+      out_data[name] = estimate_freq(
+        sig[ppg_ir_idx], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
+        f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
+        method='periodogram') * SECONDS_PER_MINUTE
+      out_unit[name] = 'bpm'
+      out_conf[name] = float(np.mean(conf[ppg_ir_idx]))
+      out_note[name] = f'Estimate of the global heart rate using {method_name}{confidence_note_scalar}'
+    elif name == 'respiratory_rate' and 'respiratory_waveform' in train_sig_names and sig_t > min_t_rr:
+      resp_idx = train_sig_names.index('respiratory_waveform')
+      out_data[name] = estimate_freq(
+        sig[resp_idx], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
+        f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
+        method='periodogram') * SECONDS_PER_MINUTE
+      out_unit[name] = 'bpm'
+      out_conf[name] = float(np.mean(conf[resp_idx]))
+      out_note[name] = f'Estimate of the global respiratory rate using {method_name}{confidence_note_scalar}'
+    elif name == 'ppg_waveform':
+      ppg_ir_idx = train_sig_names.index('ppg_waveform')
+      out_data[name] = sig[ppg_ir_idx]
+      out_unit[name] = 'unitless'
+      out_conf[name] = conf[ppg_ir_idx]
+      out_note[name] = f'Estimate of the ppg waveform using {method_name}{confidence_note_data}'
+    elif name == 'respiratory_waveform':
+      resp_idx = train_sig_names.index('respiratory_waveform')
+      out_data[name] = sig[resp_idx]
+      out_unit[name] = 'unitless'
+      out_conf[name] = conf[resp_idx]
+      out_note[name] = f'Estimate of the respiratory waveform using {method_name}{confidence_note_data}'
+  return out_data, out_unit, out_conf, out_note, live

@@ -115,7 +115,6 @@ def enforce_temporal_consistency(
   """
   # Make sure that enough frames are present
   if n_frames == 1:
-    logging.warning("Ignoring enforce_consistency since n_frames=={}".format(n_frames))
     return boxes, info
   # Determine the maximum number of detections in any frame
   max_det_faces = int(np.max(np.sum(info[...,2], axis=-1)))
@@ -212,7 +211,7 @@ class FaceDetector:
   def __call__(
       self,
       inputs: Tuple[np.ndarray, str],
-      inputs_shape: Tuple[tuple, float],
+      n_frames: int,
       fps: float
     ) -> Tuple[np.ndarray, np.ndarray]:
     """Run inference.
@@ -220,7 +219,7 @@ class FaceDetector:
     Args:
       inputs: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
         with a sequence of frames in unscaled uint8 RGB format, or a path to a video file.
-      inputs_shape: The shape of the input video as (n_frames, h, w, 3)
+      n_frames: The number of input video frames
       fps: Sampling frequency of the input video.
     Returns:
       Tuple of
@@ -228,7 +227,6 @@ class FaceDetector:
        - info: Tuple (idx, scanned, scan_found_face, interp_valid, confidence) (n_frames, n_faces, 5)
     """
     # Determine number of batches
-    n_frames = inputs_shape[0]
     n_batches = math.ceil((n_frames / (fps / self.fs)) / MAX_SCAN_FRAMES)
     if n_batches > 1:
       logging.info("Running face detection in {} batches...".format(n_batches))
@@ -236,10 +234,14 @@ class FaceDetector:
     offsets_lengths = [(i[0], len(i)) for i in np.array_split(np.arange(n_frames), n_batches)]
     # Process in batches
     results = [self.scan_batch(inputs=inputs, batch=i, n_batches=n_batches, start=int(s), end=int(s+l), fps=fps) for i, (s, l) in enumerate(offsets_lengths)]
-    boxes = np.concatenate([r[0] for r in results], axis=0)
-    classes = np.concatenate([r[1] for r in results], axis=0)
-    scan_idxs = np.concatenate([r[2] for r in results], axis=0)
-    scan_every = int(np.max(np.diff(scan_idxs)))
+    if len(results) == 1:
+      boxes, classes, scan_idxs = results[0]
+      scan_idxs = np.asarray(scan_idxs)
+    else:
+      boxes = np.concatenate([r[0] for r in results], axis=0)
+      classes = np.concatenate([r[1] for r in results], axis=0)
+      scan_idxs = np.concatenate([r[2] for r in results], axis=0)
+    scan_every = 1 if len(scan_idxs) == 1 else int(np.max(np.diff(scan_idxs)))
     n_frames_scan = boxes.shape[0]
     # Non-max suppression
     idxs, num_valid = nms(boxes=boxes,
@@ -256,7 +258,7 @@ class FaceDetector:
       logging.warning("No faces found")
       return [], []
     # Assort info: idx, scanned, scan_found_face, confidence
-    idxs = np.repeat(scan_idxs[:,np.newaxis], max_valid, axis=1)[...,np.newaxis]
+    idxs = np.repeat(scan_idxs[...,np.newaxis], max_valid, axis=1)[...,np.newaxis]
     scanned = np.ones((n_frames_scan, max_valid, 1), dtype=np.int32)
     scan_found_face = np.where(classes[...,1:2] < self.score_threshold, np.zeros([n_frames_scan, max_valid, 1], dtype=np.int32), scanned)
     info = np.r_['2', idxs, scanned, scan_found_face, classes[...,1:2]]

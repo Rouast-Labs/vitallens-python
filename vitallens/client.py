@@ -19,7 +19,6 @@
 # SOFTWARE.
 
 from datetime import datetime
-from enum import IntEnum
 import json
 import logging
 import numpy as np
@@ -28,9 +27,10 @@ from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.image import probe_image_inputs
 from typing import Union
 
-from vitallens.constants import DISCLAIMER
+from vitallens.constants import DISCLAIMER, API_MAX_FRAMES
 from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_HR_WINDOW_SIZE
 from vitallens.constants import CALC_RR_MIN, CALC_RR_MAX, CALC_RR_WINDOW_SIZE
+from vitallens.enums import Method, Mode
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
@@ -39,18 +39,13 @@ from vitallens.signal import windowed_freq, windowed_mean
 from vitallens.ssd import FaceDetector
 from vitallens.utils import load_config, check_faces, convert_ndarray_to_list
 
-class Method(IntEnum):
-  VITALLENS = 1
-  G = 2
-  CHROM = 3
-  POS = 4
-
 logging.getLogger().setLevel("INFO")
 
 class VitalLens:
   def __init__(
       self, 
       method: Method = Method.VITALLENS,
+      mode: Mode = Mode.BATCH,
       api_key: str = None,
       detect_faces: bool = True,
       estimate_running_vitals: bool = True,
@@ -65,6 +60,7 @@ class VitalLens:
 
     Args:
       method: The rPPG method to be used for inference.
+      mode: Operate in batch or burst mode
       api_key: Usage key for the VitalLens API (required for Method.VITALLENS)
       detect_faces: `True` if faces need to be detected, otherwise `False`.
       estimate_running_vitals: Set `True` to compute running vitals (e.g., `running_heart_rate`).
@@ -80,17 +76,18 @@ class VitalLens:
     # Load the config and model
     self.config = load_config(method.name.lower() + ".yaml")
     self.method = method
+    self.mode = mode
     if self.config['model'] == 'g':
-      self.rppg = GRPPGMethod(self.config)
+      self.rppg = GRPPGMethod(config=self.config, mode=mode)
     elif self.config['model'] == 'chrom':
-      self.rppg = CHROMRPPGMethod(self.config)
+      self.rppg = CHROMRPPGMethod(config=self.config, mode=mode)
     elif self.config['model'] == 'pos':
-      self.rppg = POSRPPGMethod(self.config)
+      self.rppg = POSRPPGMethod(config=self.config, mode=mode)
     elif self.config['model'] == 'vitallens':
       if self.api_key is None or self.api_key == '':
         raise ValueError("An API key is required to use Method.VITALLENS, but was not provided. "
                          "Get one for free at https://www.rouast.com/api.")
-      self.rppg = VitalLensRPPGMethod(self.config, self.api_key)
+      self.rppg = VitalLensRPPGMethod(config=self.config, mode=mode, api_key=self.api_key)
     else:
       raise ValueError("Method {} not implemented!".format(self.config['model']))
     self.detect_faces = detect_faces
@@ -102,6 +99,7 @@ class VitalLens:
       self.face_detector = FaceDetector(
         max_faces=fdet_max_faces, fs=fdet_fs, score_threshold=fdet_score_threshold,
         iou_threshold=fdet_iou_threshold)
+    assert not (fdet_max_faces > 1 and mode == Mode.BURST), "burst mode only supported for one face"
   def __call__(
       self,
       video: Union[np.ndarray, str],
@@ -173,6 +171,10 @@ class VitalLens:
         ]
     """
     # Probe inputs
+    if self.mode == Mode.BURST and not isinstance(video, np.ndarray):
+      raise ValueError("Must provide `np.ndarray` inputs for burst mode.")
+    if self.mode == Mode.BURST and video.shape[0] > (API_MAX_FRAMES - self.rppg.n_inputs + 1):
+      raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES - self.rppg.n_inputs + 1}, but received {video.shape[0]}.")
     inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
     # TODO: Optimize performance of simple rPPG methods for long videos
     # Warning if using long video
@@ -182,7 +184,10 @@ class VitalLens:
     _, height, width, _ = inputs_shape
     if self.detect_faces:
       # Detect faces
-      faces_rel, _ = self.face_detector(inputs=video, inputs_shape=inputs_shape, fps=fps)
+      if self.mode == Mode.BURST:
+        faces_rel, _ = self.face_detector(inputs=video[-1:], n_frames=1, fps=fps)
+      else:
+        faces_rel, _ = self.face_detector(inputs=video, n_frames=inputs_shape[0], fps=fps)
       # If no faces detected: return empty list
       if len(faces_rel) == 0:
         logging.warning("No faces to analyze")
@@ -192,15 +197,16 @@ class VitalLens:
       # Face axis first
       faces = np.transpose(faces, (1, 0, 2))
     # Check if the faces are valid
-    faces = check_faces(faces, inputs_shape)  
+    faces = check_faces(faces, inputs_shape)
     # Run separately for each face
     results = []
     for face in faces:
       # Run selected rPPG method
-      data, unit, conf, note, live = self.rppg(
-        frames=video, faces=face, fps=fps,
-        override_fps_target=override_fps_target,
-        override_global_parse=override_global_parse)
+      data, unit, conf, note, live = self.rppg(inputs=video,
+                                               faces=face,
+                                               fps=fps,
+                                               override_fps_target=override_fps_target,
+                                               override_global_parse=override_global_parse)
       # Parse face results
       face_result = {'face': {
         'coordinates': face,
@@ -210,12 +216,13 @@ class VitalLens:
       # Parse vital signs results
       vital_signs_results = {}
       for name in self.config['signals']:
-        vital_signs_results[name] = {
-          '{}'.format('data' if 'waveform' in name else 'value'): data[name],
-          'unit': unit[name],
-          'confidence': conf[name],
-          'note': note[name]
-        }
+        if name in data and name in unit and name in conf and name in note:
+          vital_signs_results[name] = {
+            '{}'.format('data' if 'waveform' in name else 'value'): data[name],
+            'unit': unit[name],
+            'confidence': conf[name],
+            'note': note[name]
+          }
       if self.estimate_running_vitals:
         try:
           if 'ppg_waveform' in self.config['signals']:
@@ -247,7 +254,7 @@ class VitalLens:
               'note': 'Estimate of the running respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
         except ValueError as e:
-          logging.warning("Issue while computing running vitals: {}".format(e))
+          logging.debug("Issue while computing running vitals: {}".format(e))
       face_result['vital_signs'] = vital_signs_results
       face_result['message'] = DISCLAIMER
       results.append(face_result)
@@ -258,3 +265,6 @@ class VitalLens:
       with open(os.path.join(self.export_dir, export_filename), 'w') as f:
         json.dump(convert_ndarray_to_list(results), f, indent=4)
     return results
+  def reset(self):
+    """Reset"""
+    self.rppg.reset()
