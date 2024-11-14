@@ -173,8 +173,8 @@ class VitalLens:
     # Probe inputs
     if self.mode == Mode.BURST and not isinstance(video, np.ndarray):
       raise ValueError("Must provide `np.ndarray` inputs for burst mode.")
-    if self.mode == Mode.BURST and video.shape[0] > API_MAX_FRAMES:
-      raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES}, but received {video.shape[0]}.")
+    if self.mode == Mode.BURST and video.shape[0] > (API_MAX_FRAMES - self.rppg.n_inputs + 1):
+      raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES - self.rppg.n_inputs + 1}, but received {video.shape[0]}.")
     inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
     # TODO: Optimize performance of simple rPPG methods for long videos
     # Warning if using long video

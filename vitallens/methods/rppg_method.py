@@ -37,6 +37,7 @@ class RPPGMethod(metaclass=abc.ABCMeta):
     """
     self.fps_target = config['fps_target']
     self.op_mode = mode
+    self.n_inputs = 1
     self.est_window_length = config['est_window_length']
     self.est_window_overlap = config['est_window_overlap']
     self.est_window_flexible = self.est_window_length == 0

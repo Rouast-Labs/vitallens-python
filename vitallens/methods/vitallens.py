@@ -60,10 +60,12 @@ class VitalLensRPPGMethod(RPPGMethod):
     self.api_key = api_key
     self.model = config['model']
     self.input_size = config['input_size']
+    self.n_inputs = config['n_inputs']
     self.roi_method = config['roi_method']
     self.signals = config['signals']
     if mode == Mode.BURST:
       self.state = None
+      self.input_buffer = None
   def __call__(
       self,
       inputs: Union[np.ndarray, str],
@@ -140,8 +142,9 @@ class VitalLensRPPGMethod(RPPGMethod):
       x=idxs, y=conf_ds, xs=np.arange(inputs_n), axis=1)
     live = interpolate_cubic_spline(
       x=idxs, y=live_ds, xs=np.arange(inputs_n), axis=0)
-    # Filter (2, n_frames)
-    sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
+    # Filter only in batch mode (2, n_frames)
+    if self.op_mode == Mode.BATCH:
+      sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
     # Assemble and return the results
     return assemble_results(sig=sig,
                             conf=conf,
@@ -209,6 +212,16 @@ class VitalLensRPPGMethod(RPPGMethod):
       else:
         idxs = list(range(0, inputs_shape[0], ds_factor))
     else:
+      # Buffer inputs for burst mode
+      if self.op_mode == Mode.BURST:
+        # Inputs in burst mode are always np.ndarray
+        if self.state is not None:
+          # State has been initialized
+          assert self.input_buffer is not None
+          if inputs.shape[1:] != self.input_buffer.shape[1:]:
+            raise ValueError("In burst mode, input dimensions must be consistent.")
+          inputs = np.concatenate([self.input_buffer, inputs], axis=0)
+        self.input_buffer = inputs[-(self.n_inputs-1):]
       # Inputs have not been parsed globally. Parse the inputs
       frames_ds, _, _, ds_factor, idxs = parse_image_inputs(
         inputs=inputs, fps=fps, roi=roi, target_size=self.input_size, target_fps=fps_target,
@@ -216,14 +229,21 @@ class VitalLensRPPGMethod(RPPGMethod):
         trim=(start, end) if start is not None and end is not None else None,
         allow_image=False, videodims=True)
     # Make sure we have the correct number of frames
+    idxs = np.asarray(idxs)
     expected_n = math.ceil(((end-start) if start is not None and end is not None else inputs_shape[0]) / ds_factor)
-    if frames_ds.shape[0] != expected_n or len(idxs) != expected_n:
+    if (self.op_mode == Mode.BURST and self.state is not None): expected_n += (self.n_inputs - 1)
+    if frames_ds.shape[0] != expected_n or idxs.shape[0] != expected_n:
       raise ValueError("Unexpected number of frames returned. Try to set `override_global_parse` to `True` or `False`.")
     # Prepare API header and payload
     headers = {"x-api-key": self.api_key}
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8')}
-    if self.op_mode == Mode.BURST and self.state is not None:
-      payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
+    if self.op_mode == Mode.BURST:
+      if self.state is not None:
+        # State and frame buffer have been initialized
+        assert self.input_buffer is not None
+        payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
+        # Adjust idxs
+        idxs = idxs[3:] - 3
     # Ask API to process video
     response = requests.post(API_URL, headers=headers, json=payload)
     response_body = json.loads(response.text)
@@ -250,7 +270,6 @@ class VitalLensRPPGMethod(RPPGMethod):
     live_ds = np.asarray(response_body["face"]["confidence"])
     if self.op_mode == Mode.BURST:
       self.state = np.asarray(response_body["state"]["data"], dtype=np.float32)
-    idxs = np.asarray(idxs)
     return sig_ds, conf_ds, live_ds, idxs
   def postprocess(
       self,
@@ -293,3 +312,4 @@ class VitalLensRPPGMethod(RPPGMethod):
     """Reset"""
     if self.op_mode == Mode.BURST:
       self.state = None
+      self.input_buffer = None

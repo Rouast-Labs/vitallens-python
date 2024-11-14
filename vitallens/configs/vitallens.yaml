@@ -27,6 +27,8 @@
 model: 'vitallens'
 # Size of the input
 input_size: 40
+# Number of inputs
+n_inputs: 4
 # List estimated signals
 signals: ['heart_rate', 'respiratory_rate', 'ppg_waveform', 'respiratory_waveform']
 

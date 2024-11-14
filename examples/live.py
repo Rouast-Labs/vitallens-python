@@ -2,6 +2,7 @@ import argparse
 import concurrent.futures
 import cv2
 import numpy as np
+from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_upper_body_roi_from_det
 from prpy.numpy.signal import estimate_freq
 import sys
@@ -13,6 +14,7 @@ sys.path.append('../vitallens-python')
 from vitallens import VitalLens, Mode, Method
 from vitallens.buffer import SignalBuffer, MultiSignalBuffer
 from vitallens.constants import API_MIN_FRAMES
+from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 
 def draw_roi(frame, roi):
   roi = np.asarray(roi).astype(np.int32)
@@ -49,9 +51,10 @@ def draw_fps(frame, fps, text, draw_area_bl_x, draw_area_bl_y):
   cv2.putText(frame, text='{}: {:.1f}'.format(text, fps), org=(draw_area_bl_x, draw_area_bl_y),
     fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(0,255,0), thickness=1)
 
-def draw_vital(frame, sig, text, sig_name, fps, mult, color, draw_area_bl_x, draw_area_bl_y):
+def draw_vital(frame, sig, text, sig_name, fps, color, draw_area_bl_x, draw_area_bl_y):
   if sig_name in sig:
-    val = estimate_freq(x=sig[sig_name], f_s=fps, f_res=0.0167, method='periodogram') * mult
+    f_range = (CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE) if 'heart' in sig_name else (CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE)
+    val = estimate_freq(x=sig[sig_name], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE, f_range=f_range, method='periodogram') * SECONDS_PER_MINUTE
     cv2.putText(frame, text='{}: {:.1f}'.format(text, val), org=(draw_area_bl_x, draw_area_bl_y),
       fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=color, thickness=1)
 
@@ -131,7 +134,7 @@ def run(args):
       # Start next prediction
       if len(frame_buffer) >= (API_MIN_FRAMES if args.method == Method.VITALLENS else 1):
         n_frames = len(frame_buffer)
-        future = executor.submit(vl, frame_buffer.copy(), fps)
+        executor.submit(vl, frame_buffer.copy(), fps)
         frame_buffer.clear()
     # Sample frames
     if i % ds_factor == 0:
@@ -149,8 +152,8 @@ def run(args):
         draw_area_tl_x=roi[2]+20, draw_area_tl_y=int(roi[1]+(roi[3]-roi[1])/2.0), color=(255, 0, 0))
       draw_fps(frame, fps=fps, text="fps", draw_area_bl_x=roi[0], draw_area_bl_y=roi[3]+20)
       draw_fps(frame, fps=p_fps, text="p_fps", draw_area_bl_x=int(roi[0]+0.4*(roi[2]-roi[0])), draw_area_bl_y=roi[3]+20)
-      draw_vital(frame, sig=signals, text="hr [bpm]", sig_name='ppg_waveform_sig', fps=fps, mult=60., color=(0,0,255), draw_area_bl_x=roi[2]+20, draw_area_bl_y=int(roi[1]+(roi[3]-roi[1])/2.0))
-      draw_vital(frame, sig=signals, text="rr [rpm]", sig_name='respiratory_waveform_sig', fps=fps, mult=60., color=(255,0,0), draw_area_bl_x=roi[2]+20, draw_area_bl_y=roi[3])
+      draw_vital(frame, sig=signals, text="hr [bpm]", sig_name='ppg_waveform_sig', fps=fps, color=(0,0,255), draw_area_bl_x=roi[2]+20, draw_area_bl_y=int(roi[1]+(roi[3]-roi[1])/2.0))
+      draw_vital(frame, sig=signals, text="rr [rpm]", sig_name='respiratory_waveform_sig', fps=fps, color=(255,0,0), draw_area_bl_x=roi[2]+20, draw_area_bl_y=roi[3])
     cv2.imshow('Live', frame)
     c = cv2.waitKey(1)
     if c == 27:
