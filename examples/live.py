@@ -31,7 +31,7 @@ def draw_signal(frame, roi, sig, sig_name, sig_conf_name, draw_area_tl_x, draw_a
       p1 = p2
   # Derive dims from roi
   display_height = (roi[3] - roi[1]) / 2.0
-  display_width = (roi[2] - roi[0]) * 0.8
+  display_width = (roi[2] - roi[0]) * 1.2
   # Draw signal
   if sig_name in sig:
     vals = np.asarray(sig[sig_name])
@@ -77,8 +77,8 @@ def run(args):
   cap = cv2.VideoCapture(0)
   executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
   vl = VitalLensRunnable(method=args.method, api_key=args.api_key)
-  signal_buffer = MultiSignalBuffer(size=120, ndim=1, ignore_k=['face'])
-  fps_buffer = SignalBuffer(size=120, ndim=1, pad_val=np.nan)
+  signal_buffer = MultiSignalBuffer(size=240, ndim=1, ignore_k=['face'])
+  fps_buffer = SignalBuffer(size=240, ndim=1, pad_val=np.nan)
   frame_buffer = []
   # Sample frames from cv2 video stream attempting to achieve this framerate
   target_fps = 30.
