@@ -255,7 +255,11 @@ class VitalLensRPPGMethod(RPPGMethod):
       elif response.status_code == 429:
         raise VitalLensAPIQuotaExceededError()
       elif response.status_code == 400:
-        raise VitalLensAPIError("Error occurred in the API. Message: {}".format(response_body['message']))
+        raise VitalLensAPIError("Parameters missing: {}".format(response_body['message']))
+      elif response.status_code == 422:
+        raise VitalLensAPIError("Issue with provided parameters: {}".format(response_body['message']))
+      elif response.status_code == 500:
+        raise VitalLensAPIError("Error occurred in the API: {}".format(response_body['message']))
       else:
         raise Exception("Error {}: {}".format(response.status_code, response_body['message']))
     # Parse response
