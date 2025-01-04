@@ -66,19 +66,12 @@ jobs:
           python -m pip install ".[test]"
       - name: Set development API_URL for non-main branches
         if: github.ref != 'refs/heads/main'
-        run: echo "Setting development API_URL"
-        env:
-          API_URL: "https://api.rouast.com/vitallens-dev"
-      - name: Confirm API_URL is set
-        run: echo "API_URL=${API_URL}"
-        env:
-          API_URL: ${{ env.API_URL }}
+        run: echo "API_URL=https://api.rouast.com/vitallens-dev" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Test with pytest
         env:
-          API_URL: ${{ env.API_URL }}
           VITALLENS_DEV_API_KEY: ${{ secrets.VITALLENS_DEV_API_KEY }}
         run: |
           pytest
