@@ -90,7 +90,7 @@ def create_mock_api_response(
           "ppg_waveform": {"data": np.random.rand(video.shape[0]).tolist(), "unit": "unitless", "confidence": np.ones(video.shape[0]).tolist(), "note": "Note"},
           "respiratory_waveform": {"data": np.random.rand(video.shape[0]).tolist(), "unit": "unitless", "confidence": np.ones(video.shape[0]).tolist(), "note": "Note"}},
         "face": {"confidence": np.random.rand(video.shape[0]).tolist(), "note": "Note"},
-        "state": {"data": np.zeros((2, 128), dtype=np.float32).tolist(), "note": "Note"},
+        "state": {"data": np.zeros((256,), dtype=np.float32).tolist(), "note": "Note"},
         "message": "Message"})
 
 @pytest.mark.parametrize("file", [True, False])
@@ -167,7 +167,7 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   live = np.asarray(response_body["face"]["confidence"])
   assert live.shape == (n_frames,)
   state = np.asarray(response_body["state"]["data"])
-  assert state.shape == (2, 128)
+  assert state.shape == (256,)
 
 def test_VitalLens_API_wrong_api_key(request):
   config = load_config("vitallens.yaml")
@@ -194,4 +194,4 @@ def test_VitalLens_API_no_parseable_video(request):
   headers = {"x-api-key": api_key}
   payload = {"video": "not_parseable"}
   response = requests.post(API_URL, headers=headers, json=payload)
-  assert response.status_code == 400
+  assert response.status_code == 422
