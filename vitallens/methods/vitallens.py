@@ -122,7 +122,9 @@ class VitalLensRPPGMethod(RPPGMethod):
     start_idxs = [i * (split_len - API_OVERLAP) for i in range(n_splits)]
     end_idxs = [min(start + split_len, inputs_n) for start in start_idxs]
     start_idxs = [max(0, end - split_len) for end in end_idxs]
-    logging.info("Running inference for {} frames using {} request(s)...".format(expected_ds_n, n_splits))
+    logging.info(
+      f"Analyzing video of {expected_ds_n} frames using {n_splits} request{'s' if n_splits > 1 else ''}. "
+      f"Using {n_splits * split_len} frames in total{' including overlaps' if n_splits > 1 else ''}...")
     # Process the splits in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
       results = list(executor.map(lambda i: self.process_api_batch(
@@ -244,6 +246,7 @@ class VitalLensRPPGMethod(RPPGMethod):
         payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
         # Adjust idxs
         idxs = idxs[(self.n_inputs-1):] - (self.n_inputs-1)
+        logging.debug(f"Providing state, which means that {self.n_inputs-1} less frames will be used and results for {self.n_inputs-1} less frames will be returned.")
     # Ask API to process video
     response = requests.post(API_URL, headers=headers, json=payload)
     response_body = json.loads(response.text)
