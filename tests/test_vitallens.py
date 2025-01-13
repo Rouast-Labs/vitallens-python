@@ -78,7 +78,7 @@ def create_mock_api_response(
     video = np.frombuffer(base64.b64decode(video_base64), dtype=np.uint8)
     video = video.reshape((-1, 40, 40, 3))
   except Exception as e:
-    return create_mock_response(status_code=400, json_data={"vital_signs": None, "face": None, "state": None, "message": "Error: {}".format(e)})
+    return create_mock_response(status_code=400, json_data={"vital_signs": None, "face": None, "state": None, "message": f"Error: {e}"})
   if video.shape[0] < API_MIN_FRAMES or video.shape[0] > API_MAX_FRAMES:
     return create_mock_response(status_code=400, json_data={"vital_signs": None, "face": None, "state": None, "message": "Error"})
   return create_mock_response(

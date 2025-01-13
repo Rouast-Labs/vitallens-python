@@ -48,14 +48,14 @@ def draw_signal(frame, roi, sig, sig_name, sig_conf_name, draw_area_tl_x, draw_a
           min_val=0., max_val=1., color=color, thickness=1)
 
 def draw_fps(frame, fps, text, draw_area_bl_x, draw_area_bl_y):
-  cv2.putText(frame, text='{}: {:.1f}'.format(text, fps), org=(draw_area_bl_x, draw_area_bl_y),
+  cv2.putText(frame, text=f"{text}: {fps:.1f}", org=(draw_area_bl_x, draw_area_bl_y),
     fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(0,255,0), thickness=1)
 
 def draw_vital(frame, sig, text, sig_name, fps, color, draw_area_bl_x, draw_area_bl_y):
   if sig_name in sig:
     f_range = (CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE) if 'ppg' in sig_name else (CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE)
     val = estimate_freq(x=sig[sig_name], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE, f_range=f_range, method='periodogram') * SECONDS_PER_MINUTE
-    cv2.putText(frame, text='{}: {:.1f}'.format(text, val), org=(draw_area_bl_x, draw_area_bl_y),
+    cv2.putText(frame, text=f"{text}: {val:.1f}", org=(draw_area_bl_x, draw_area_bl_y),
       fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=color, thickness=2)
 
 class VitalLensRunnable:

@@ -190,7 +190,7 @@ class VitalLensRPPGMethod(RPPGMethod):
        - live: Liveness estimation. Shape (n_frames,)
        - idxs: Indices in inputs that were processed. Shape (n_frames)
     """
-    logging.debug("Batch {}/{}...".format(batch, n_batches))
+    logging.debug(f"Batch {batch}/{n_batches}...")
     # Trim face detections to batch if necessary
     if start is not None and end is not None:
       faces = faces[start:end]
@@ -252,19 +252,19 @@ class VitalLensRPPGMethod(RPPGMethod):
     response_body = json.loads(response.text)
     # Check if call was successful
     if response.status_code != 200:
-      logging.error("Error {}: {}".format(response.status_code, response_body['message']))
+      logging.error(f"Error {response.status_code}: {response_body['message']}")
       if response.status_code == 403:
         raise VitalLensAPIKeyError()
       elif response.status_code == 429:
         raise VitalLensAPIQuotaExceededError()
       elif response.status_code == 400:
-        raise VitalLensAPIError("Parameters missing: {}".format(response_body['message']))
+        raise VitalLensAPIError(f"Parameters missing: {response_body['message']}")
       elif response.status_code == 422:
-        raise VitalLensAPIError("Issue with provided parameters: {}".format(response_body['message']))
+        raise VitalLensAPIError(f"Issue with provided parameters: {response_body['message']}")
       elif response.status_code == 500:
-        raise VitalLensAPIError("Error occurred in the API: {}".format(response_body['message']))
+        raise VitalLensAPIError(f"Error occurred in the API: {response_body['message']}")
       else:
-        raise Exception("Error {}: {}".format(response.status_code, response_body['message']))
+        raise Exception(f"Error {response.status_code}: {response_body['message']}")
     # Parse response
     sig_ds = np.stack([
       np.asarray(response_body["vital_signs"]["ppg_waveform"]["data"]),
@@ -304,7 +304,7 @@ class VitalLensRPPGMethod(RPPGMethod):
         size = moving_average_size_for_rr_response(fps)
         Lambda = detrend_lambda_for_rr_response(fps)
       else:
-        raise ValueError("Type {} not implemented!".format(type))
+        raise ValueError(f"Type {type} not implemented!")
       if sig.shape[-1] < 4 * API_MAX_FRAMES:
         # Detrend only for shorter videos for performance reasons
         sig = detrend(sig, Lambda)

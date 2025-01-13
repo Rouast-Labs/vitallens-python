@@ -45,18 +45,18 @@ def run(args=None):
   fps, *_ = probe_video(args.video_path)
   if args.input_str:
     video = args.video_path
-    print("Using video at: {}".format(args.video_path))
+    print(f"Using video at: {args.video_path}")
   else:
-    print("Reading full video into memory from {}...".format(args.video_path))
+    print(f"Reading full video into memory from {args.video_path}...")
     video, _ = read_video_from_path(path=args.video_path, pix_fmt='rgb24')
-    print("Video shape: {}".format(video.shape))
+    print(f"Video shape: {video.shape}")
   # Estimate vitals and measure inference time
   vl = VitalLens(method=args.method, api_key=args.api_key)
   start = timeit.default_timer()
   result = vl(video=video, fps=fps)
   stop = timeit.default_timer()
   time_ms = (stop-start)*1000
-  print("Inference time: {:.2f} ms".format(time_ms))
+  print(f"Inference time: {time_ms:.2f} ms")
   # Print the results
   print(result)
   # Plot the results
@@ -65,20 +65,18 @@ def run(args=None):
     fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(12, 6))
   else:
     fig, ax1 = plt.subplots(1, figsize=(12, 6))
-  fig.suptitle('Vital signs estimated from {} using {} in {:.2f} ms'.format(args.video_path, args.method.name, time_ms))
+  fig.suptitle(f"Vital signs estimated from {args.video_path} using {args.method.name} in {time_ms:.2f} ms")
   if "ppg_waveform" in vital_signs and ppg_gt is not None:
     hr_gt = estimate_freq(ppg_gt, f_s=fps, f_res=0.005, f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
-    ax1.plot(ppg_gt, color=COLOR_GT, label='PPG Waveform Ground Truth -> HR: {:.1f} bpm'.format(hr_gt))
+    ax1.plot(ppg_gt, color=COLOR_GT, label=f"PPG Waveform Ground Truth -> HR: {hr_gt:.1f} bpm")
   if "respiratory_waveform" in vital_signs and resp_gt is not None:
     rr_gt = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
-    ax2.plot(resp_gt, color=COLOR_GT, label='Respiratory Waveform Ground Truth -> RR: {:.1f} bpm'.format(rr_gt))
+    ax2.plot(resp_gt, color=COLOR_GT, label=f"Respiratory Waveform Ground Truth -> RR: {rr_gt:.1f} bpm")
   if "ppg_waveform" in vital_signs:
-    ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimate -> HR: {:.1f} bpm ({:.0f}% confidence)'.format(
-      vital_signs['heart_rate']['value'], vital_signs['heart_rate']['confidence']*100))
+    ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label=f"PPG Waveform Estimate -> HR: {vital_signs['heart_rate']['value']:.1f} bpm ({vital_signs['heart_rate']['confidence']*100:.0f}% confidence)")
     ax1.plot(vital_signs['ppg_waveform']['confidence'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimation Confidence')
   if "respiratory_waveform" in vital_signs:
-    ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimate -> RR: {:.1f} bpm ({:.0f}% confidence)'.format(
-      vital_signs['respiratory_rate']['value'], vital_signs['respiratory_rate']['confidence']*100))
+    ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label=f"Respiratory Waveform Estimate -> RR: {vital_signs['respiratory_rate']['value']:.1f} bpm ({vital_signs['respiratory_rate']['confidence']*100:.0f}% confidence)")
     ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimation Confidence')
   ax1.legend()
   if 'respiratory_waveform' in vital_signs: ax2.legend()

@@ -229,7 +229,7 @@ class FaceDetector:
     # Determine number of batches
     n_batches = math.ceil((n_frames / (fps / self.fs)) / MAX_SCAN_FRAMES)
     if n_batches > 1:
-      logging.info("Running face detection in {} batches...".format(n_batches))
+      logging.info(f"Running face detection in {n_batches} batches...")
     # Determine frame offsets for batches
     offsets_lengths = [(i[0], len(i)) for i in np.array_split(np.arange(n_frames), n_batches)]
     # Process in batches
@@ -298,7 +298,7 @@ class FaceDetector:
        - classes: Detection scores for boxes (n_frames, n_boxes, 2)
        - idxs: Indices of the scanned frames from the original video
     """
-    logging.debug("Batch {}/{}...".format(batch, n_batches))
+    logging.debug(f"Batch {batch}/{n_batches}...")
     # Parse the inputs
     inputs, fps, _, _, idxs = parse_image_inputs(
       inputs=inputs, fps=fps, roi=None, target_size=INPUT_SIZE, target_fps=self.fs,

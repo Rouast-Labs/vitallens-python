@@ -54,10 +54,10 @@ def download_file(url: str, dest: str):
   """
   if not os.path.exists(dest):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    logging.info("Downloading {} to {}".format(url, dest))
+    logging.info(f"Downloading {url} to {dest}")
     urllib.request.urlretrieve(url, dest)
   else:
-    logging.info("{} already exists, skipping download.".format(dest))
+    logging.info(f"{dest} already exists, skipping download.")
 
 def merge_faces(faces: np.ndarray) -> tuple:
   """Compute the union of all faces.
@@ -105,8 +105,7 @@ def check_faces(
     elif len(faces.shape) == 2:
       # Single face detections for multiple frames given
       if faces.shape[0] != n_frames:
-        raise ValueError("Assuming detections of a single face for multiple frames given, but number of frames ({}) did not match number of face detections ({})".format(
-          n_frames, faces.shape[0]))
+        raise ValueError(f"Assuming detections of a single face for multiple frames given, but number of frames ({n_frames}) did not match number of face detections ({faces.shape[0]})")
       faces = faces[np.newaxis]
     elif len(faces.shape) == 3:
       if faces.shape[1] == 1:
@@ -115,8 +114,7 @@ def check_faces(
       else:
         # Multiple face detections for multiple frames given
         if faces.shape[1] != n_frames:
-          raise ValueError("Assuming detections of multiple faces for multiple frames given, but number of frames ({}) did not match number of detections for each face ({})".format(
-            n_frames, faces.shape[1]))
+          raise ValueError(f"Assuming detections of multiple faces for multiple frames given, but number of frames ({n_frames}) did not match number of detections for each face ({faces.shape[1]})")
   # Check that x0 < x1 and y0 < y1 for all faces
   if not (np.all((faces[...,2] - faces[...,0]) > 0) and np.all((faces[...,3] - faces[...,1]) > 0)):
     raise ValueError("Face detections are invalid, should be in form [x0, y0, x1, y1]")

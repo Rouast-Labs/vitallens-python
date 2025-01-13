@@ -104,8 +104,7 @@ def windowed_mean(
     out = resolve_1d_window_view(
       x=out, window_size=window_size, overlap=overlap, pad_end=pad_end, fill_method='start')
   # Make sure sizes match
-  assert out.shape[0] == n, "out.shape[0] {} != {} n".format(
-    out.shape[0], n)
+  assert out.shape[0] == n, f"out.shape[0] {out.shape[0]} != {n} n"
   # Return
   return out
 
@@ -146,8 +145,7 @@ def windowed_freq(
     freq_vals = resolve_1d_window_view(
       x=freqs, window_size=window_size, overlap=overlap, pad_end=pad_end, fill_method='start')
   # Make sure sizes match
-  assert freq_vals.shape[0] == n, "freq_vals.shape[0] {} != {} n".format(
-    freq_vals.shape[0], n)
+  assert freq_vals.shape[0] == n, f"freq_vals.shape[0] {freq_vals.shape[0]} != {n} n"
   # Return
   return freq_vals
 

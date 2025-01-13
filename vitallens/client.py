@@ -89,7 +89,7 @@ class VitalLens:
                          "Get one for free at https://www.rouast.com/api.")
       self.rppg = VitalLensRPPGMethod(config=self.config, mode=mode, api_key=self.api_key)
     else:
-      raise ValueError("Method {} not implemented!".format(self.config['model']))
+      raise ValueError(f"Method {self.config['model']} not implemented!")
     self.detect_faces = detect_faces
     self.estimate_running_vitals = estimate_running_vitals
     self.export_to_json = export_to_json
@@ -218,7 +218,7 @@ class VitalLens:
       for name in self.config['signals']:
         if name in data and name in unit and name in conf and name in note:
           vital_signs_results[name] = {
-            '{}'.format('data' if 'waveform' in name else 'value'): data[name],
+            f"{'data' if 'waveform' in name else 'value'}": data[name],
             'unit': unit[name],
             'confidence': conf[name],
             'note': note[name]
@@ -254,14 +254,14 @@ class VitalLens:
               'note': 'Estimate of the running respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
         except ValueError as e:
-          logging.debug("Issue while computing running vitals: {}".format(e))
+          logging.debug(f"Issue while computing running vitals: {e}")
       face_result['vital_signs'] = vital_signs_results
       face_result['message'] = DISCLAIMER
       results.append(face_result)
     # Export to json
     if self.export_to_json:
       os.makedirs(self.export_dir, exist_ok=True)
-      export_filename = "{}.json".format(export_filename) if export_filename is not None else 'vitallens_{}.json'.format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+      export_filename = f"{export_filename}.json" if export_filename is not None else f"vitallens_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
       with open(os.path.join(self.export_dir, export_filename), 'w') as f:
         json.dump(convert_ndarray_to_list(results), f, indent=4)
     return results
