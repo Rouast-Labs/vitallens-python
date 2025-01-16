@@ -146,7 +146,7 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
     inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": api_key}
-  payload = {"video": base64.b64encode(frames[:n_frames].tobytes()).decode('utf-8')}
+  payload = {"video": base64.b64encode(frames[:n_frames].tobytes()).decode('utf-8'), "origin": "vitallens-python"}
   if process_signals: payload['fps'] = str(30)
   response = requests.post(API_URL, headers=headers, json=payload)
   response_body = json.loads(response.text)
@@ -178,20 +178,20 @@ def test_VitalLens_API_wrong_api_key(request):
     inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": "WRONG_API_KEY"}
-  payload = {"video": base64.b64encode(frames[:16].tobytes()).decode('utf-8')}
+  payload = {"video": base64.b64encode(frames[:16].tobytes()).decode('utf-8'), "origin": "vitallens-python"}
   response = requests.post(API_URL, headers=headers, json=payload)
   assert response.status_code == 403
 
 def test_VitalLens_API_no_video(request):
   api_key = request.getfixturevalue('test_dev_api_key')
   headers = {"x-api-key": api_key}
-  payload = {"some_key": "irrelevant"}
+  payload = {"some_key": "irrelevant", "origin": "vitallens-python"}
   response = requests.post(API_URL, headers=headers, json=payload)
   assert response.status_code == 400
 
 def test_VitalLens_API_no_parseable_video(request):
   api_key = request.getfixturevalue('test_dev_api_key')
   headers = {"x-api-key": api_key}
-  payload = {"video": "not_parseable"}
+  payload = {"video": "not_parseable", "origin": "vitallens-python"}
   response = requests.post(API_URL, headers=headers, json=payload)
   assert response.status_code == 422
