@@ -33,6 +33,7 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
+from vitallens.constants import CALC_HR_MIN_WINDOW_SIZE, CALC_RR_MIN_WINDOW_SIZE
 from vitallens.enums import Mode
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
@@ -155,6 +156,8 @@ class VitalLensRPPGMethod(RPPGMethod):
                             train_sig_names=['ppg_waveform', 'respiratory_waveform'],
                             pred_signals=self.signals,
                             method_name=self.model,
+                            min_t_hr=CALC_HR_MIN_WINDOW_SIZE,
+                            min_t_rr=CALC_RR_MIN_WINDOW_SIZE,
                             can_provide_confidence=True)
   def process_api_batch(
       self,
@@ -238,7 +241,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       raise ValueError("Unexpected number of frames returned. Try to set `override_global_parse` to `True` or `False`.")
     # Prepare API header and payload
     headers = {"x-api-key": self.api_key}
-    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8')}
+    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": "vitallens-python"}
     if self.op_mode == Mode.BURST:
       if self.state is not None:
         # State and frame buffer have been initialized
