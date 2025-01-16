@@ -26,6 +26,7 @@ from prpy.numpy.signal import interpolate_cubic_spline
 from typing import Union, Tuple
 
 from vitallens.buffer import SignalBuffer
+from vitallens.constants import CALC_HR_MIN_WINDOW_SIZE
 from vitallens.enums import Mode
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import assemble_results
@@ -131,6 +132,7 @@ class SimpleRPPGMethod(RPPGMethod):
                             train_sig_names=['ppg_waveform'],
                             pred_signals=self.signals,
                             method_name=self.model,
+                            min_t_hr=CALC_HR_MIN_WINDOW_SIZE,
                             can_provide_confidence=False)
   def reset(self):
     """Reset"""
