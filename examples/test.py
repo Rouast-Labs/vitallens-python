@@ -73,10 +73,12 @@ def run(args=None):
     rr_gt = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
     ax2.plot(resp_gt, color=COLOR_GT, label=f"Respiratory Waveform Ground Truth -> RR: {rr_gt:.1f} bpm")
   if "ppg_waveform" in vital_signs:
-    ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label=f"PPG Waveform Estimate -> HR: {vital_signs['heart_rate']['value']:.1f} bpm ({vital_signs['heart_rate']['confidence']*100:.0f}% confidence)")
+    hr_string = f" -> HR: {vital_signs['heart_rate']['value']:.1f} bpm ({vital_signs['heart_rate']['confidence']*100:.0f}% confidence)" if "heart_rate" in vital_signs else ""
+    ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label=f"PPG Waveform Estimate{hr_string}")
     ax1.plot(vital_signs['ppg_waveform']['confidence'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimation Confidence')
   if "respiratory_waveform" in vital_signs:
-    ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label=f"Respiratory Waveform Estimate -> RR: {vital_signs['respiratory_rate']['value']:.1f} bpm ({vital_signs['respiratory_rate']['confidence']*100:.0f}% confidence)")
+    rr_string = f" -> RR: {vital_signs['respiratory_rate']['value']:.1f} bpm ({vital_signs['respiratory_rate']['confidence']*100:.0f}% confidence)" if "respiratory_rate" in vital_signs else ""
+    ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label=f"Respiratory Waveform Estimate{rr_string}")
     ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimation Confidence')
   ax1.legend()
   if 'respiratory_waveform' in vital_signs: ax2.legend()
