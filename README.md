@@ -27,6 +27,8 @@ result = vl("video.mp4")
 print(result)
 ```
 
+Using a different language or platform? We also have a [JavaScript client](https://github.com/Rouast-Labs/vitallens.js).
+
 ### Disclaimer
 
 `vitallens` provides vital sign estimates for general wellness purposes only. It is not intended for medical use. Always consult with your doctor for any health concerns or for medically precise measurement.
