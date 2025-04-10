@@ -2,9 +2,9 @@
   <a href="https://www.rouast.com/api/">
     <img src="./assets/logo.svg" alt="VitalLens API Logo" height="80px" width="80px"/>
   </a>
-  <h2>vitallens-python</h2>
+  <h1>vitallens-python</h1>
   <p align="center">
-    <p>Estimate vital signs such as heart rate and respiratory rate from video.</p>
+    <p>Estimate vital signs such as heart rate and respiratory rate from video in Python.</p>
   </p>
 
 [![Tests](https://github.com/Rouast-Labs/vitallens-python/actions/workflows/main.yml/badge.svg)](https://github.com/Rouast-Labs/vitallens-python/actions/workflows/main.yml)
@@ -35,13 +35,13 @@ print(result)
 
 Using a different language or platform? We also have a [JavaScript client](https://github.com/Rouast-Labs/vitallens.js).
 
-#### Disclaimer
+### Disclaimer
 
 `vitallens` provides vital sign estimates for general wellness purposes only. It is not intended for medical use. Always consult with your doctor for any health concerns or for medically precise measurement.
 
 See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api/terms) and our [Privacy Policy](https://www.rouast.com/privacy).
 
-### Installation
+## Installation
 
 General prerequisites are `python>=3.8` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
 
@@ -58,7 +58,7 @@ git clone https://github.com/Rouast-Labs/vitallens-python.git
 pip install ./vitallens-python
 ```
 
-### How to use
+## How to use
 
 To start using `vitallens`, first create an instance of `vitallens.VitalLens`. 
 It can be configured using the following parameters:
@@ -155,9 +155,9 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
 ]
 ```
 
-### Examples to get started
+## Examples to get started
 
-#### Live test with webcam in real-time
+### Live test with webcam in real-time
 
 Test `vitallens` in real-time with your webcam using the script `examples/live.py`.
 This uses `Mode.BURST` to update results continuously (approx. every 2 seconds for `Method.VITALLENS`).
@@ -172,7 +172,7 @@ May need to install requirements first: `pip install opencv-python`
 python examples/live.py --method=VITALLENS --api_key=YOUR_API_KEY
 ```
 
-#### Compare results with gold-standard labels using our example script
+### Compare results with gold-standard labels using our example script
 
 There is an example Python script in `examples/test.py` which uses `Mode.BATCH` to run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
 Some options are available:
@@ -192,7 +192,7 @@ python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.
 
 This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
 
-#### Use VitalLens API to estimate vitals from a video file
+### Use VitalLens API to estimate vitals from a video file
 
 ```python
 from vitallens import VitalLens, Method
@@ -201,7 +201,7 @@ vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
 result = vl("video.mp4")
 ```
 
-#### Use POS method on an `np.ndarray` of video frames
+### Use POS method on an `np.ndarray` of video frames
 
 ```python
 from vitallens import VitalLens, Method
@@ -212,16 +212,16 @@ vl = VitalLens(method=Method.POS)
 result = vl(my_video_arr, fps=my_video_fps)
 ```
 
-#### Run example script with Docker
+### Run example script with Docker
 
 If you encounter issues installing `vitallens` dependencies directly, you can use our Docker image, which contains all necessary tools and libraries.
 This docker image is set up to execute the example Python script in `examples/test.py` for you. 
 
-##### Prerequisites
+#### Prerequisites
 
 - [Docker](https://docs.docker.com/engine/install/) installed on your system.
 
-##### Usage
+#### Usage
 
 1. Clone the repository
 
@@ -266,7 +266,7 @@ Please note that the example script plots won't work when running them through D
 docker cp <container_id>:/app/results.png .
 ```
 
-### Linting and tests
+## Linting and tests
 
 Before running tests, please make sure that you have an environment variable `VITALLENS_DEV_API_KEY` set to a valid API Key. 
 To lint and run tests:
@@ -276,7 +276,7 @@ flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 pytest
 ```
 
-### Build
+## Build
 
 To build:
 
