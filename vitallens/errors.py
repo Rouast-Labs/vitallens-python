@@ -20,7 +20,7 @@
 
 class VitalLensAPIKeyError(Exception):
   """Exception raised for errors related to the API key."""
-  def __init__(self, message="A valid API key is required to use Method.VITALLENS. Get one for free at https://www.rouast.com/api."):
+  def __init__(self, message="A valid API key is required to use Method.VITALLENS. If you signed up recently, please try again in a minute to allow your API key to become active. Otherwise, head to https://www.rouast.com/api to get a free API key."):
     self.message = message
     super().__init__(self.message)
 
