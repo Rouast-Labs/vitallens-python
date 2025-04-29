@@ -31,10 +31,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
-      - name: Security audit (fail on high / critical)
+      - name: Security audit
         run: |
           python -m pip install pip-audit
-          python -m pip_audit --severity-level high
+          python -m pip_audit
       - name: Set development API_URL for non-main branches
         if: github.ref != 'refs/heads/main'
         run: echo "API_URL=https://api.rouast.com/vitallens-dev/file" >> $GITHUB_ENV
@@ -68,10 +68,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
-      - name: Security audit (fail on high / critical)
+      - name: Security audit
         run: |
           python -m pip install pip-audit
-          python -m pip_audit --severity-level high
+          python -m pip_audit
       - name: Set development API_URL for non-main branches
         if: github.ref != 'refs/heads/main'
         run: echo "API_URL=https://api.rouast.com/vitallens-dev/file" | Out-File -FilePath $env:GITHUB_ENV -Append
