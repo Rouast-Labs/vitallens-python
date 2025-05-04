@@ -25,7 +25,7 @@ import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.signal import detrend, moving_average, standardize
-from prpy.numpy.signal import interpolate_cubic_spline
+from prpy.numpy.signal import interpolate_filtered
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -139,12 +139,9 @@ class VitalLensRPPGMethod(RPPGMethod):
     conf_ds, _ = reassemble_from_windows(x=conf_results, idxs=idxs_results)
     live_ds = reassemble_from_windows(x=np.asarray(live_results)[:,np.newaxis], idxs=idxs_results)[0][0]
     # Interpolate to original sampling rate
-    sig = interpolate_cubic_spline(
-      x=idxs, y=sig_ds, xs=np.arange(inputs_n), axis=1)
-    conf = interpolate_cubic_spline(
-      x=idxs, y=conf_ds, xs=np.arange(inputs_n), axis=1)
-    live = interpolate_cubic_spline(
-      x=idxs, y=live_ds, xs=np.arange(inputs_n), axis=0)
+    sig = interpolate_filtered(t_in=idxs, s_in=sig_ds, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
+    conf = interpolate_filtered(t_in=idxs, s_in=conf_ds, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
+    live = interpolate_filtered(t_in=idxs, s_in=live_ds, t_out=np.arange(inputs_n), axis=0, extrapolate=True)
     # Filter only in batch mode (2, n_frames)
     if self.op_mode == Mode.BATCH:
       sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
