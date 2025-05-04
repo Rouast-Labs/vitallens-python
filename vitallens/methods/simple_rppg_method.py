@@ -22,7 +22,7 @@ import abc
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi, parse_image_inputs
-from prpy.numpy.signal import interpolate_cubic_spline
+from prpy.numpy.signal import interpolate_filtered
 from typing import Union, Tuple
 
 from vitallens.buffer import SignalBuffer
@@ -116,8 +116,10 @@ class SimpleRPPGMethod(RPPGMethod):
     # Perform rppg algorithm step (n_frames_ds,)
     sig_ds = self.algorithm(rgb_ds, fps_ds)
     # Interpolate to original sampling rate (n_frames,)
-    sig = interpolate_cubic_spline(
-      x=np.arange(inputs_shape[0])[0::ds_factor], y=sig_ds, xs=np.arange(inputs_shape[0]), axis=1)
+    sig = interpolate_filtered(t_in=np.arange(inputs_shape[0])[0::ds_factor],
+                               s_in=sig_ds,
+                               t_out=np.arange(inputs_shape[0]),
+                               axis=1, extrapolate=True)
     # Filter and add dim (1, n_frames)
     sig = self.pulse_filter(sig, fps)
     sig = np.expand_dims(sig, axis=0)
