@@ -20,7 +20,8 @@
 
 import logging
 import numpy as np
-from prpy.numpy.signal import detrend, moving_average, standardize, div0
+from prpy.numpy.core import standardize, div0
+from prpy.numpy.filters import detrend, moving_average
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
 from vitallens.enums import Mode

@@ -20,7 +20,8 @@
 
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
-from prpy.numpy.signal import moving_average_size_for_response, estimate_freq
+from prpy.numpy.freq import estimate_freq
+from prpy.numpy.filters import moving_average_size_for_response
 from prpy.numpy.stride_tricks import window_view, resolve_1d_window_view
 from typing import Tuple, Union
 
@@ -76,20 +77,22 @@ def detrend_lambda_for_rr_response(
 
 def windowed_mean(
     x: np.ndarray,
-    window_size: int,
-    overlap: int
+    window_size: float,
+    f_s: float
   ) -> np.ndarray:
   """Estimate the mean of an array using sliding windows. Returns same shape.
   
   Args:
     x: An array. Shape (n,)
-    window_size: The size of the sliding window
-    overlap: The overlap of subsequent locations of the sliding window
+    window_size: The size of the sliding window in seconds
+    f_s: The sampling frequency of x
   Returns:
     out: The windowed mean. Shape (n,)
   """
   x = np.asarray(x)
   n = len(x)
+  window_size = int(window_size * f_s)
+  overlap = window_size // 2
   # Make sure there are enough vals
   if n <= window_size:
     raise ValueError("Not enough vals for frequency calculation.")
@@ -110,8 +113,7 @@ def windowed_mean(
 
 def windowed_freq(
     x: np.ndarray,
-    window_size: int,
-    overlap: int,
+    window_size: float,
     f_s: Union[int, float],
     f_range: Tuple[Union[int, float], Union[int, float]] = None,
     f_res: Union[int, float] = None
@@ -120,8 +122,7 @@ def windowed_freq(
   
   Args:
     x: A signal with a frequency we want to estimate. Shape (n,)
-    window_size: The size of the sliding window
-    overlap: The overlap of subsequent locations of the sliding window
+    window_size: The size of the sliding window in seconds
     f_s: The sampling frequency of x
     f_range: A range of (min, max) feasible frequencies to restrict the estimation to 
     f_res: The frequency resolution at which to estimate
@@ -130,6 +131,8 @@ def windowed_freq(
   """
   x = np.asarray(x)
   n = len(x)
+  window_size = int(window_size * f_s)
+  overlap = window_size // 2
   # Make sure there are enough vals
   if n <= window_size:
     raise ValueError("Not enough vals for frequency calculation.")

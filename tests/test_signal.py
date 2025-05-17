@@ -29,7 +29,7 @@ from vitallens.signal import windowed_mean, windowed_freq, reassemble_from_windo
 def test_windowed_mean():
   x = np.asarray([0., 1., 2., 3., 4., 5., 6.])
   y = np.asarray([1., 1., 2., 3., 4., 5., 5.])
-  out_y = windowed_mean(x=x, window_size=3, overlap=1)
+  out_y = windowed_mean(x=x, window_size=3, f_s=1)
   np.testing.assert_equal(
     out_y,
     y)
@@ -44,7 +44,7 @@ def test_estimate_freq_periodogram(num, freq, window_size):
   y = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
-    windowed_freq(x=y, window_size=window_size, overlap=window_size//2, f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
+    windowed_freq(x=y, window_size=window_size/len(x), f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
     np.full((num,), fill_value=freq),
     rtol=1)
   

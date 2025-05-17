@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_upper_body_roi_from_det
-from prpy.numpy.signal import estimate_freq
+from prpy.numpy.freq import estimate_freq
 import sys
 import threading
 import time
@@ -66,7 +66,7 @@ class VitalLensRunnable:
                         mode=Mode.BURST,
                         api_key=api_key,
                         detect_faces=True,
-                        estimate_running_vitals=True,
+                        estimate_rolling_vitals=True,
                         export_to_json=False)
   def __call__(self, inputs, fps):
     self.active.set()

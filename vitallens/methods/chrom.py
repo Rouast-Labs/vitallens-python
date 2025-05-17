@@ -21,7 +21,8 @@
 import logging
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
-from prpy.numpy.signal import detrend, standardize, butter_bandpass, div0
+from prpy.numpy.core import standardize, div0
+from prpy.numpy.filters import detrend, butter_bandpass
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
 from vitallens.enums import Mode

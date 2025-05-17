@@ -22,10 +22,11 @@ import base64
 import concurrent.futures
 import math
 import numpy as np
+from prpy.numpy.core import standardize
 from prpy.numpy.face import get_roi_from_det
+from prpy.numpy.filters import detrend, moving_average
 from prpy.numpy.image import probe_image_inputs, parse_image_inputs
-from prpy.numpy.signal import detrend, moving_average, standardize
-from prpy.numpy.signal import interpolate_filtered
+from prpy.numpy.interp import interpolate_filtered
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -237,6 +238,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     if frames_ds.shape[0] != expected_n or idxs.shape[0] != expected_n:
       raise ValueError("Unexpected number of frames returned. Try to set `override_global_parse` to `True` or `False`.")
     # Prepare API header and payload
+    # -- by not sending fps information, ask endpoint not to do any processing
     headers = {"x-api-key": self.api_key}
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": "vitallens-python"}
     if self.op_mode == Mode.BURST:

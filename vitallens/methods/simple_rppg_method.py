@@ -22,7 +22,7 @@ import abc
 import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi, parse_image_inputs
-from prpy.numpy.signal import interpolate_filtered
+from prpy.numpy.interp import interpolate_filtered
 from typing import Union, Tuple
 
 from vitallens.buffer import SignalBuffer

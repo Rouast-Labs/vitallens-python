@@ -19,7 +19,8 @@
 # SOFTWARE.
 
 import numpy as np
-from prpy.numpy.signal import detrend, moving_average, standardize
+from prpy.numpy.core import standardize
+from prpy.numpy.filters import detrend, moving_average
 
 from vitallens.enums import Mode
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
