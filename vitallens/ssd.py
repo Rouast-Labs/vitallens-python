@@ -24,7 +24,7 @@ import math
 import numpy as np
 import os
 from prpy.numpy.image import parse_image_inputs
-from prpy.numpy.signal import interpolate_vals
+from prpy.numpy.interp import interpolate_vals
 import sys
 from typing import Tuple
 

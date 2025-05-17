@@ -48,7 +48,7 @@ class VitalLens:
       mode: Mode = Mode.BATCH,
       api_key: str = None,
       detect_faces: bool = True,
-      estimate_running_vitals: bool = True,
+      estimate_rolling_vitals: bool = True,
       fdet_max_faces: int = 1,
       fdet_fs: float = 1.0,
       fdet_score_threshold: float = 0.9,
@@ -63,7 +63,7 @@ class VitalLens:
       mode: Operate in batch or burst mode
       api_key: Usage key for the VitalLens API (required for Method.VITALLENS)
       detect_faces: `True` if faces need to be detected, otherwise `False`.
-      estimate_running_vitals: Set `True` to compute running vitals (e.g., `running_heart_rate`).
+      estimate_rolling_vitals: Set `True` to compute rolling vitals (e.g., `rolling_heart_rate`).
       fdet_max_faces: The maximum number of faces to detect (if necessary).
       fdet_fs: Frequency [Hz] at which faces should be scanned. Detections are
         linearly interpolated for remaining frames.
@@ -91,7 +91,7 @@ class VitalLens:
     else:
       raise ValueError(f"Method {self.config['model']} not implemented!")
     self.detect_faces = detect_faces
-    self.estimate_running_vitals = estimate_running_vitals
+    self.estimate_rolling_vitals = estimate_rolling_vitals
     self.export_to_json = export_to_json
     self.export_dir = export_dir
     if detect_faces:
@@ -223,38 +223,38 @@ class VitalLens:
             'confidence': conf[name],
             'note': note[name]
           }
-      if self.estimate_running_vitals:
+      if self.estimate_rolling_vitals:
         try:
           if 'ppg_waveform' in self.config['signals']:
-            window_size = int(CALC_HR_WINDOW_SIZE*fps)
-            running_hr = windowed_freq(
-              x=data['ppg_waveform'], f_s=fps, f_res=0.005,
-              f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),            
-              window_size=window_size, overlap=window_size//2) * SECONDS_PER_MINUTE
-            running_conf = windowed_mean(
-              x=conf['ppg_waveform'], window_size=window_size, overlap=window_size//2)
-            vital_signs_results['running_heart_rate'] = {
-              'data': running_hr,
+            rolling_hr = windowed_freq(x=data['ppg_waveform'],
+                                       f_s=fps, f_res=0.005,
+                                       f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),            
+                                       window_size=CALC_HR_WINDOW_SIZE) * SECONDS_PER_MINUTE
+            rolling_conf = windowed_mean(x=conf['ppg_waveform'],
+                                         window_size=CALC_HR_WINDOW_SIZE,
+                                         f_s=fps)
+            vital_signs_results['rolling_heart_rate'] = {
+              'data': rolling_hr,
               'unit': 'bpm',
-              'confidence': running_conf,
-              'note': 'Estimate of the running heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
+              'confidence': rolling_conf,
+              'note': 'Estimate of the rolling heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
           if 'respiratory_waveform' in self.config['signals']:
-            window_size = int(CALC_RR_WINDOW_SIZE*fps)
-            running_rr = windowed_freq(
-              x=data['respiratory_waveform'], f_s=fps, f_res=0.005,
-              f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),            
-              window_size=window_size, overlap=window_size//2) * SECONDS_PER_MINUTE
-            running_conf = windowed_mean(
-              x=conf['respiratory_waveform'], window_size=window_size, overlap=window_size//2)
-            vital_signs_results['running_respiratory_rate'] = {
-              'data': running_rr,
+            rolling_rr = windowed_freq(x=data['respiratory_waveform'],
+                                       f_s=fps, f_res=0.005,
+                                       f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
+                                       window_size=CALC_RR_WINDOW_SIZE) * SECONDS_PER_MINUTE
+            rolling_conf = windowed_mean(x=conf['respiratory_waveform'],
+                                         window_size=CALC_RR_WINDOW_SIZE,
+                                         f_s=fps)
+            vital_signs_results['rolling_respiratory_rate'] = {
+              'data': rolling_rr,
               'unit': 'bpm',
-              'confidence': running_conf,
-              'note': 'Estimate of the running respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
+              'confidence': rolling_conf,
+              'note': 'Estimate of the rolling respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
         except ValueError as e:
-          logging.debug(f"Issue while computing running vitals: {e}")
+          logging.debug(f"Issue while computing rolling vitals: {e}")
       face_result['vital_signs'] = vital_signs_results
       face_result['message'] = DISCLAIMER
       results.append(face_result)

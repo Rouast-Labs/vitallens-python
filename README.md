@@ -69,7 +69,7 @@ It can be configured using the following parameters:
 | mode                    | Operation mode. {`Mode.BATCH` for indep. videos or `Mode.BURST` for video stream}  | `Mode.BATCH`       |
 | api_key                 | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
 | detect_faces            | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
-| estimate_running_vitals | Set `True` to compute running vitals (e.g., `running_heart_rate`).                 | `True`             |
+| estimate_rolling_vitals | Set `True` to compute rolling vitals (e.g., `rolling_heart_rate`).                 | `True`             |
 | fdet_max_faces          | The maximum number of faces to detect (if necessary).                              | `1`                |
 | fdet_fs                 | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
 | export_to_json          | If `True`, write results to a json file.                                           | `True`             |
@@ -92,10 +92,10 @@ Calls are configured using the following parameters:
 | Name                       | Type                | Returned if                                                                                              |
 |----------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
 | `heart_rate`               | Global value        | Video at least 2 seconds long and using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`   |
-| `running_heart_rate`       | Continuous values   | Video more than 10 seconds long and using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G` and `estimate_running_vitals=True` |
+| `rolling_heart_rate`       | Continuous values   | Video more than 10 seconds long and using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G` and `estimate_rolling_vitals=True` |
 | `ppg_waveform`             | Continuous waveform | Using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`                                     |
 | `respiratory_rate`         | Global value        | Video at least 4 seconds long and using `Method.VITALLENS`                                               |
-| `running_respiratory_rate` | Continuous values   | Video more than 30 seconds long and using `Method.VITALLENS` and `estimate_running_vitals=True`          |
+| `rolling_respiratory_rate` | Continuous values   | Video more than 30 seconds long and using `Method.VITALLENS` and `estimate_rolling_vitals=True`          |
 | `respiratory_waveform`     | Continuous waveform | Using `Method.VITALLENS`                                                                                 |
 
 The estimation results are returned as a `list`. It contains a `dict` for each distinct face, with the following structure:
@@ -133,13 +133,13 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
         'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
         'note': <Explanatory note>
       },
-      'running_heart_rate': {
+      'rolling_heart_rate': {
         'data': <Estimated value for each frame as np.ndarray of shape (n_frames,)>,
         'unit': <Value unit>,
         'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
         'note': <Explanatory note>
       },
-      'running_respiratory_rate': {
+      'rolling_respiratory_rate': {
         'data': <Estimated value for each frame as np.ndarray of shape (n_frames,)>,
         'unit': <Value unit>,
         'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,

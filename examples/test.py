@@ -8,7 +8,7 @@ from prpy.constants import SECONDS_PER_MINUTE
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.helpers import str2bool
-from prpy.numpy.signal import estimate_freq
+from prpy.numpy.freq import estimate_freq
 import timeit
 from vitallens import VitalLens, Method
 from vitallens.utils import download_file
