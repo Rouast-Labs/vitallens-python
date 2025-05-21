@@ -23,10 +23,10 @@ import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
+from prpy.numpy.physio import CALC_HR_MIN_T
 from typing import Union, Tuple
 
 from vitallens.buffer import SignalBuffer
-from vitallens.constants import CALC_HR_MIN_WINDOW_SIZE
 from vitallens.enums import Mode
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import assemble_results
@@ -134,7 +134,7 @@ class SimpleRPPGMethod(RPPGMethod):
                             train_sig_names=['ppg_waveform'],
                             pred_signals=self.signals,
                             method_name=self.model,
-                            min_t_hr=CALC_HR_MIN_WINDOW_SIZE,
+                            min_t_hr=CALC_HR_MIN_T,
                             can_provide_confidence=False)
   def reset(self):
     """Reset"""

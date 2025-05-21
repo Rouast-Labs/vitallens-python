@@ -22,12 +22,6 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-# Vitals estimation window sizes [s]
-CALC_HR_MIN_WINDOW_SIZE = 2
-CALC_HR_WINDOW_SIZE = 10
-CALC_RR_MIN_WINDOW_SIZE = 4
-CALC_RR_WINDOW_SIZE = 30
-
 # API settings
 API_MIN_FRAMES = 16
 API_MAX_FRAMES = 900

@@ -26,11 +26,11 @@ import os
 from prpy.numpy.image import probe_image_inputs
 from prpy.numpy.physio import EScope, EMethod
 from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
+from prpy.numpy.physio import CALC_HR_MAX_T, CALC_RR_MAX_T
 from prpy.numpy.rolling import rolling_calc
 from typing import Union
 
 from vitallens.constants import DISCLAIMER, API_MAX_FRAMES
-from vitallens.constants import CALC_HR_WINDOW_SIZE, CALC_RR_WINDOW_SIZE
 from vitallens.enums import Method, Mode
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
@@ -229,16 +229,16 @@ class VitalLens:
             rolling_hr = estimate_hr_from_signal(
               signal=data['ppg_waveform'],
               f_s=fps,
-              window_size=CALC_HR_WINDOW_SIZE,
+              window_size=CALC_HR_MAX_T,
               scope=EScope.ROLLING,
               method=EMethod.PERIODOGRAM
             )
             rolling_conf = rolling_calc(
               x=conf['ppg_waveform'],
               calc_fn=lambda x: np.nanmean(x),
-              min_window_size=CALC_HR_WINDOW_SIZE,
-              max_window_size=CALC_HR_WINDOW_SIZE,
-              overlap=CALC_HR_WINDOW_SIZE//2
+              min_window_size=CALC_HR_MAX_T,
+              max_window_size=CALC_HR_MAX_T,
+              overlap=CALC_HR_MAX_T // 2
             )
             vital_signs_results['rolling_heart_rate'] = {
               'data': rolling_hr,
@@ -250,16 +250,16 @@ class VitalLens:
             rolling_rr = estimate_rr_from_signal(
               signal=data['respiratory_waveform'],
               f_s=fps,
-              window_size=CALC_RR_WINDOW_SIZE,
+              window_size=CALC_RR_MAX_T,
               scope=EScope.ROLLING,
               method=EMethod.PERIODOGRAM
             )
             rolling_conf = rolling_calc(
               x=conf['respiratory_waveform'],
               calc_fn=lambda x: np.nanmean(x),
-              min_window_size=CALC_RR_WINDOW_SIZE,
-              max_window_size=CALC_RR_WINDOW_SIZE,
-              overlap=CALC_RR_WINDOW_SIZE//2
+              min_window_size=CALC_RR_MAX_T,
+              max_window_size=CALC_RR_MAX_T,
+              overlap=CALC_RR_MAX_T // 2
             )
             vital_signs_results['rolling_respiratory_rate'] = {
               'data': rolling_rr,
