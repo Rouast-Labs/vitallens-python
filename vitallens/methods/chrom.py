@@ -23,11 +23,11 @@ import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.core import standardize, div0
 from prpy.numpy.filters import detrend, butter_bandpass
+from prpy.numpy.physio import detrend_lambda_for_hr_response
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
 from vitallens.enums import Mode
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
-from vitallens.signal import detrend_lambda_for_hr_response
 
 class CHROMRPPGMethod(SimpleRPPGMethod):
   """The CHROM algorithm by De Haan and Jeanne (2013)"""

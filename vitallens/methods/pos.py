@@ -22,12 +22,12 @@ import logging
 import numpy as np
 from prpy.numpy.core import standardize, div0
 from prpy.numpy.filters import detrend, moving_average
+from prpy.numpy.physio import detrend_lambda_for_hr_response
+from prpy.numpy.physio import moving_average_size_for_hr_response
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
 from vitallens.enums import Mode
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
-from vitallens.signal import detrend_lambda_for_hr_response
-from vitallens.signal import moving_average_size_for_hr_response
 
 class POSRPPGMethod(SimpleRPPGMethod):
   """The POS algorithm by Wang et al. (2017)"""

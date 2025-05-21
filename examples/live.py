@@ -4,7 +4,8 @@ import cv2
 import numpy as np
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.face import get_upper_body_roi_from_det
-from prpy.numpy.freq import estimate_freq
+from prpy.numpy.physio import estimate_rate_from_signal, EScope, EMethod
+from prpy.numpy.physio import HR_MIN, HR_MAX, RR_MIN, RR_MAX
 import sys
 import threading
 import time
@@ -14,7 +15,6 @@ sys.path.append('../vitallens-python')
 from vitallens import VitalLens, Mode, Method
 from vitallens.buffer import SignalBuffer, MultiSignalBuffer
 from vitallens.constants import API_MIN_FRAMES
-from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
 
 def draw_roi(frame, roi):
   roi = np.asarray(roi).astype(np.int32)
@@ -53,8 +53,8 @@ def draw_fps(frame, fps, text, draw_area_bl_x, draw_area_bl_y):
 
 def draw_vital(frame, sig, text, sig_name, fps, color, draw_area_bl_x, draw_area_bl_y):
   if sig_name in sig:
-    f_range = (CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE) if 'ppg' in sig_name else (CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE)
-    val = estimate_freq(x=sig[sig_name], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE, f_range=f_range, method='periodogram') * SECONDS_PER_MINUTE
+    f_range = (HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE) if 'ppg' in sig_name else (RR_MIN/SECONDS_PER_MINUTE, RR_MAX/SECONDS_PER_MINUTE)
+    val = estimate_rate_from_signal(signal=sig[sig_name], f_s=fps, f_range=f_range, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
     cv2.putText(frame, text=f"{text}: {val:.1f}", org=(draw_area_bl_x, draw_area_bl_y),
       fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=color, thickness=2)
 
