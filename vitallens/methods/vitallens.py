@@ -29,6 +29,7 @@ from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
 from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
+from prpy.numpy.physio import CALC_HR_MIN_T, CALC_RR_MIN_T
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -36,7 +37,6 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
-from vitallens.constants import CALC_HR_MIN_WINDOW_SIZE, CALC_RR_MIN_WINDOW_SIZE
 from vitallens.enums import Mode
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
@@ -154,8 +154,8 @@ class VitalLensRPPGMethod(RPPGMethod):
                             train_sig_names=['ppg_waveform', 'respiratory_waveform'],
                             pred_signals=self.signals,
                             method_name=self.model,
-                            min_t_hr=CALC_HR_MIN_WINDOW_SIZE,
-                            min_t_rr=CALC_RR_MIN_WINDOW_SIZE,
+                            min_t_hr=CALC_HR_MIN_T,
+                            min_t_rr=CALC_RR_MIN_T,
                             can_provide_confidence=True)
   def process_api_batch(
       self,
