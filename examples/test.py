@@ -4,16 +4,14 @@ import argparse
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
-from prpy.constants import SECONDS_PER_MINUTE
 from prpy.ffmpeg.probe import probe_video
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.helpers import str2bool
-from prpy.numpy.freq import estimate_freq
+from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
+from prpy.numpy.physio import EScope, EMethod
 import timeit
 from vitallens import VitalLens, Method
 from vitallens.utils import download_file
-from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX
-from vitallens.constants import CALC_RR_MIN, CALC_RR_MAX
 
 COLOR_GT = '#000000'
 METHOD_COLORS = {
@@ -67,10 +65,10 @@ def run(args=None):
     fig, ax1 = plt.subplots(1, figsize=(12, 6))
   fig.suptitle(f"Vital signs estimated from {args.video_path} using {args.method.name} in {time_ms:.2f} ms")
   if "ppg_waveform" in vital_signs and ppg_gt is not None:
-    hr_gt = estimate_freq(ppg_gt, f_s=fps, f_res=0.005, f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
+    hr_gt = estimate_hr_from_signal(signal=ppg_gt, f_s=fps, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
     ax1.plot(ppg_gt, color=COLOR_GT, label=f"PPG Waveform Ground Truth -> HR: {hr_gt:.1f} bpm")
   if "respiratory_waveform" in vital_signs and resp_gt is not None:
-    rr_gt = estimate_freq(resp_gt, f_s=fps, f_res=0.005, f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE), method='periodogram') * SECONDS_PER_MINUTE
+    rr_gt = estimate_rr_from_signal(signal=resp_gt, f_s=fps, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
     ax2.plot(resp_gt, color=COLOR_GT, label=f"Respiratory Waveform Ground Truth -> RR: {rr_gt:.1f} bpm")
   if "ppg_waveform" in vital_signs:
     hr_string = f" -> HR: {vital_signs['heart_rate']['value']:.1f} bpm ({vital_signs['heart_rate']['confidence']*100:.0f}% confidence)" if "heart_rate" in vital_signs else ""

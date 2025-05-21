@@ -19,138 +19,9 @@
 # SOFTWARE.
 
 import numpy as np
-from prpy.constants import SECONDS_PER_MINUTE
-from prpy.numpy.freq import estimate_freq
-from prpy.numpy.filters import moving_average_size_for_response
-from prpy.numpy.stride_tricks import window_view, resolve_1d_window_view
-from typing import Tuple, Union
-
-from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_RR_MIN, CALC_RR_MAX
-
-def moving_average_size_for_hr_response(
-    f_s: Union[float, int]
-  ) -> int:
-  """Get the moving average window size for a signal with HR information sampled at a given frequency
-  
-  Args:
-    f_s: The sampling frequency
-  Returns:
-    The moving average size in number of signal vals
-  """
-  return moving_average_size_for_response(f_s, CALC_HR_MAX / SECONDS_PER_MINUTE)
-
-def moving_average_size_for_rr_response(
-    f_s: Union[float, int]
-  ) -> int:
-  """Get the moving average window size for a signal with RR information sampled at a given frequency
-  
-  Args:
-    f_s: The sampling frequency
-  Returns:
-    The moving average size in number of signal vals
-  """
-  return moving_average_size_for_response(f_s, CALC_RR_MAX / SECONDS_PER_MINUTE)
-
-def detrend_lambda_for_hr_response(
-    f_s: Union[float, int]
-  ) -> int:
-  """Get the detrending lambda parameter for a signal with HR information sampled at a given frequency
-  
-  Args:
-    f_s: The sampling frequency
-  Returns:
-    The lambda parameter
-  """
-  return int(0.1614*np.power(f_s, 1.9804))
-
-def detrend_lambda_for_rr_response(
-    f_s: Union[float, int]
-  ) -> int:
-  """Get the detrending lambda parameter for a signal with RR information sampled at a given frequency
-  
-  Args:
-    f_s: The sampling frequency
-  Returns:
-    The lambda parameter
-  """
-  return int(4.4248*np.power(f_s, 2.1253))
-
-def windowed_mean(
-    x: np.ndarray,
-    window_size: float,
-    f_s: float
-  ) -> np.ndarray:
-  """Estimate the mean of an array using sliding windows. Returns same shape.
-  
-  Args:
-    x: An array. Shape (n,)
-    window_size: The size of the sliding window in seconds
-    f_s: The sampling frequency of x
-  Returns:
-    out: The windowed mean. Shape (n,)
-  """
-  x = np.asarray(x)
-  n = len(x)
-  window_size = int(window_size * f_s)
-  overlap = window_size // 2
-  # Make sure there are enough vals
-  if n <= window_size:
-    raise ValueError("Not enough vals for frequency calculation.")
-  else:
-    # Generate a windowed view into x
-    y, _, pad_end = window_view(
-      x=x, min_window_size=window_size, max_window_size=window_size, overlap=overlap,
-      pad_mode='reflect')
-    # Estimate frequency for each window
-    out = np.mean(y, axis=1)
-    # Resolve to target dims
-    out = resolve_1d_window_view(
-      x=out, window_size=window_size, overlap=overlap, pad_end=pad_end, fill_method='start')
-  # Make sure sizes match
-  assert out.shape[0] == n, f"out.shape[0] {out.shape[0]} != {n} n"
-  # Return
-  return out
-
-def windowed_freq(
-    x: np.ndarray,
-    window_size: float,
-    f_s: Union[int, float],
-    f_range: Tuple[Union[int, float], Union[int, float]] = None,
-    f_res: Union[int, float] = None
-  ) -> np.ndarray:
-  """Estimate the varying frequency within a signal array using sliding windows. Returns same shape.
-  
-  Args:
-    x: A signal with a frequency we want to estimate. Shape (n,)
-    window_size: The size of the sliding window in seconds
-    f_s: The sampling frequency of x
-    f_range: A range of (min, max) feasible frequencies to restrict the estimation to 
-    f_res: The frequency resolution at which to estimate
-  Returns:
-    out: The estimated frequencies. Shape (n,)
-  """
-  x = np.asarray(x)
-  n = len(x)
-  window_size = int(window_size * f_s)
-  overlap = window_size // 2
-  # Make sure there are enough vals
-  if n <= window_size:
-    raise ValueError("Not enough vals for frequency calculation.")
-  else:
-    # Generate a windowed view into x
-    y, _, pad_end = window_view(
-      x=x, min_window_size=window_size, max_window_size=window_size, overlap=overlap,
-      pad_mode='reflect')
-    # Estimate frequency for each window
-    freqs = estimate_freq(
-      y, f_s=f_s, f_range=f_range, f_res=f_res, method='periodogram', axis=1)
-    # Resolve to target dims
-    freq_vals = resolve_1d_window_view(
-      x=freqs, window_size=window_size, overlap=overlap, pad_end=pad_end, fill_method='start')
-  # Make sure sizes match
-  assert freq_vals.shape[0] == n, f"freq_vals.shape[0] {freq_vals.shape[0]} != {n} n"
-  # Return
-  return freq_vals
+from prpy.numpy.physio import EScope, EMethod
+from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
+from typing import Tuple
 
 def reassemble_from_windows(
     x: np.ndarray,
@@ -222,19 +93,19 @@ def assemble_results(
   for name in pred_signals:
     if name == 'heart_rate' and 'ppg_waveform' in train_sig_names and sig_t > min_t_hr:
       ppg_ir_idx = train_sig_names.index('ppg_waveform')
-      out_data[name] = estimate_freq(
-        sig[ppg_ir_idx], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-        f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),
-        method='periodogram') * SECONDS_PER_MINUTE
+      out_data[name] = estimate_hr_from_signal(signal=sig[ppg_ir_idx],
+                                               f_s=fps,
+                                               scope=EScope.GLOBAL,
+                                               method=EMethod.PERIODOGRAM)
       out_unit[name] = 'bpm'
       out_conf[name] = float(np.mean(conf[ppg_ir_idx]))
       out_note[name] = f'Estimate of the global heart rate using {method_name}{confidence_note_scalar}'
     elif name == 'respiratory_rate' and 'respiratory_waveform' in train_sig_names and sig_t > min_t_rr:
       resp_idx = train_sig_names.index('respiratory_waveform')
-      out_data[name] = estimate_freq(
-        sig[resp_idx], f_s=fps, f_res=0.1/SECONDS_PER_MINUTE,
-        f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
-        method='periodogram') * SECONDS_PER_MINUTE
+      out_data[name] = estimate_rr_from_signal(signal=sig[resp_idx],
+                                               f_s=fps,
+                                               scope=EScope.GLOBAL,
+                                               method=EMethod.PERIODOGRAM)
       out_unit[name] = 'bpm'
       out_conf[name] = float(np.mean(conf[resp_idx]))
       out_note[name] = f'Estimate of the global respiratory rate using {method_name}{confidence_note_scalar}'

@@ -22,12 +22,6 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-# Vitals estimation constraints [1/min]
-CALC_HR_MIN = 40
-CALC_HR_MAX = 240
-CALC_RR_MIN = 1
-CALC_RR_MAX = 60
-
 # Vitals estimation window sizes [s]
 CALC_HR_MIN_WINDOW_SIZE = 2
 CALC_HR_WINDOW_SIZE = 10

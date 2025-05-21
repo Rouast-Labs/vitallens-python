@@ -23,19 +23,19 @@ import json
 import logging
 import numpy as np
 import os
-from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.image import probe_image_inputs
+from prpy.numpy.physio import EScope, EMethod
+from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
+from prpy.numpy.rolling import rolling_calc
 from typing import Union
 
 from vitallens.constants import DISCLAIMER, API_MAX_FRAMES
-from vitallens.constants import CALC_HR_MIN, CALC_HR_MAX, CALC_HR_WINDOW_SIZE
-from vitallens.constants import CALC_RR_MIN, CALC_RR_MAX, CALC_RR_WINDOW_SIZE
+from vitallens.constants import CALC_HR_WINDOW_SIZE, CALC_RR_WINDOW_SIZE
 from vitallens.enums import Method, Mode
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
 from vitallens.methods.vitallens import VitalLensRPPGMethod
-from vitallens.signal import windowed_freq, windowed_mean
 from vitallens.ssd import FaceDetector
 from vitallens.utils import load_config, check_faces, convert_ndarray_to_list
 
@@ -226,13 +226,20 @@ class VitalLens:
       if self.estimate_rolling_vitals:
         try:
           if 'ppg_waveform' in self.config['signals']:
-            rolling_hr = windowed_freq(x=data['ppg_waveform'],
-                                       f_s=fps, f_res=0.005,
-                                       f_range=(CALC_HR_MIN/SECONDS_PER_MINUTE, CALC_HR_MAX/SECONDS_PER_MINUTE),            
-                                       window_size=CALC_HR_WINDOW_SIZE) * SECONDS_PER_MINUTE
-            rolling_conf = windowed_mean(x=conf['ppg_waveform'],
-                                         window_size=CALC_HR_WINDOW_SIZE,
-                                         f_s=fps)
+            rolling_hr = estimate_hr_from_signal(
+              signal=data['ppg_waveform'],
+              f_s=fps,
+              window_size=CALC_HR_WINDOW_SIZE,
+              scope=EScope.ROLLING,
+              method=EMethod.PERIODOGRAM
+            )
+            rolling_conf = rolling_calc(
+              x=conf['ppg_waveform'],
+              calc_fn=lambda x: np.nanmean(x),
+              min_window_size=CALC_HR_WINDOW_SIZE,
+              max_window_size=CALC_HR_WINDOW_SIZE,
+              overlap=CALC_HR_WINDOW_SIZE//2
+            )
             vital_signs_results['rolling_heart_rate'] = {
               'data': rolling_hr,
               'unit': 'bpm',
@@ -240,13 +247,20 @@ class VitalLens:
               'note': 'Estimate of the rolling heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
           if 'respiratory_waveform' in self.config['signals']:
-            rolling_rr = windowed_freq(x=data['respiratory_waveform'],
-                                       f_s=fps, f_res=0.005,
-                                       f_range=(CALC_RR_MIN/SECONDS_PER_MINUTE, CALC_RR_MAX/SECONDS_PER_MINUTE),
-                                       window_size=CALC_RR_WINDOW_SIZE) * SECONDS_PER_MINUTE
-            rolling_conf = windowed_mean(x=conf['respiratory_waveform'],
-                                         window_size=CALC_RR_WINDOW_SIZE,
-                                         f_s=fps)
+            rolling_rr = estimate_rr_from_signal(
+              signal=data['respiratory_waveform'],
+              f_s=fps,
+              window_size=CALC_RR_WINDOW_SIZE,
+              scope=EScope.ROLLING,
+              method=EMethod.PERIODOGRAM
+            )
+            rolling_conf = rolling_calc(
+              x=conf['respiratory_waveform'],
+              calc_fn=lambda x: np.nanmean(x),
+              min_window_size=CALC_RR_WINDOW_SIZE,
+              max_window_size=CALC_RR_WINDOW_SIZE,
+              overlap=CALC_RR_WINDOW_SIZE//2
+            )
             vital_signs_results['rolling_respiratory_rate'] = {
               'data': rolling_rr,
               'unit': 'bpm',

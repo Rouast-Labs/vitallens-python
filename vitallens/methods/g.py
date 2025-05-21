@@ -21,11 +21,11 @@
 import numpy as np
 from prpy.numpy.core import standardize
 from prpy.numpy.filters import detrend, moving_average
+from prpy.numpy.physio import detrend_lambda_for_hr_response
+from prpy.numpy.physio import moving_average_size_for_hr_response
 
 from vitallens.enums import Mode
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
-from vitallens.signal import detrend_lambda_for_hr_response
-from vitallens.signal import moving_average_size_for_hr_response
 
 class GRPPGMethod(SimpleRPPGMethod):
   """The G algorithm by Verkruysse (2008)"""

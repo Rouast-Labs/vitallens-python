@@ -27,6 +27,8 @@ from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.filters import detrend, moving_average
 from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
+from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
+from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -38,8 +40,6 @@ from vitallens.constants import CALC_HR_MIN_WINDOW_SIZE, CALC_RR_MIN_WINDOW_SIZE
 from vitallens.enums import Mode
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
-from vitallens.signal import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
-from vitallens.signal import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from vitallens.signal import reassemble_from_windows, assemble_results
 from vitallens.utils import check_faces_in_roi
 
