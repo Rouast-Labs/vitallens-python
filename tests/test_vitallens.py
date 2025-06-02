@@ -22,6 +22,7 @@ import base64
 import json
 import numpy as np
 from prpy.numpy.image import parse_image_inputs
+from prpy.numpy.physio import CALC_HR_MIN_T, CALC_RR_MIN_T
 import pytest
 import requests
 from unittest.mock import Mock, patch
@@ -163,7 +164,10 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   assert resp_waveform_data.shape == (n_frames,)
   assert resp_waveform_conf.shape == (n_frames,)
   t = n_frames/test_video_fps 
-  assert all((key in vital_signs) if (process_signals and t > 8.) else (key not in vital_signs) for key in ["heart_rate", "respiratory_rate"])
+  if process_signals and t >= CALC_HR_MIN_T: assert "heart_rate" in vital_signs
+  else: assert "heart_rate" not in vital_signs
+  if process_signals and t >= CALC_RR_MIN_T: assert "respiratory_rate" in vital_signs
+  else: assert "respiratory_rate" not in vital_signs
   live = np.asarray(response_body["face"]["confidence"])
   assert live.shape == (n_frames,)
   state = np.asarray(response_body["state"]["data"])
