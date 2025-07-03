@@ -43,7 +43,7 @@ See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api
 
 ## Installation
 
-General prerequisites are `python>=3.8` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
+General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
 
 The easiest way to install the latest version of `vitallens` and its Python dependencies:
 
@@ -57,6 +57,10 @@ Alternatively, it can be done by cloning the source:
 git clone https://github.com/Rouast-Labs/vitallens-python.git
 pip install ./vitallens-python
 ```
+
+### Dealing with possible issues
+
+On newer versions of Python you may face the issue that the dependency `onnxruntime` cannot be installed via pip. If you are using `conda`, you can try installing it via `conda install -c conda-forge onnxruntime`, and then run `pip install vitallens` again. Otherwise try using Python 3.9, 3.10, or 3.11.
 
 ## How to use
 
