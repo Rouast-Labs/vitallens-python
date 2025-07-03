@@ -43,7 +43,7 @@ See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api
 
 ## Installation
 
-General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
+General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable. On Windows, [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/) must also be installed.
 
 The easiest way to install the latest version of `vitallens` and its Python dependencies:
 
