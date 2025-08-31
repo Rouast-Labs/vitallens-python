@@ -24,6 +24,7 @@ import pytest
 import sys
 sys.path.append('../vitallens-python')
 
+from vitallens.enums import Method
 from vitallens.signal import reassemble_from_windows, assemble_results
 
 def test_reassemble_from_windows():
@@ -67,7 +68,7 @@ def test_assemble_results(signals, can_provide_confidence, min_t_too_long):
                                                                       fps=fps,
                                                                       train_sig_names=train_signals,
                                                                       pred_signals=pred_signals,
-                                                                      method_name="test",
+                                                                      method=Method.G,
                                                                       can_provide_confidence=True,
                                                                       min_t_hr=8. if min_t_too_long else 2.,
                                                                       min_t_rr=8. if min_t_too_long else 4.)
