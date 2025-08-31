@@ -23,6 +23,8 @@ from prpy.numpy.physio import EScope, EMethod
 from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
 from typing import Tuple
 
+from vitallens.enums import Method
+
 def reassemble_from_windows(
     x: np.ndarray,
     idxs: np.ndarray
@@ -59,7 +61,7 @@ def assemble_results(
     fps: float,
     train_sig_names: list,
     pred_signals: list,
-    method_name: str,
+    method: Method,
     can_provide_confidence: bool = True,
     min_t_hr: float = 2.,
     min_t_rr: float = 4.
@@ -72,7 +74,7 @@ def assemble_results(
     fps: The sampling rate
     train_sig_names: The train signal names of the method
     pred_signals: The pred signals specs of the method
-    method_name: The name of the method
+    method: The used method
     can_provide_confidence: Whether the method can provide a confidence estimate
     min_t_hr: Minimum amount of time signal to estimate hr
     min_t_rr: Minimum amount of time signal to estimate rr
@@ -99,7 +101,7 @@ def assemble_results(
                                                method=EMethod.PERIODOGRAM)
       out_unit[name] = 'bpm'
       out_conf[name] = float(np.mean(conf[ppg_ir_idx]))
-      out_note[name] = f'Estimate of the global heart rate using {method_name}{confidence_note_scalar}'
+      out_note[name] = f'Estimate of the global heart rate using {method.name}{confidence_note_scalar}'
     elif name == 'respiratory_rate' and 'respiratory_waveform' in train_sig_names and sig_t > min_t_rr:
       resp_idx = train_sig_names.index('respiratory_waveform')
       out_data[name] = estimate_rr_from_signal(signal=sig[resp_idx],
@@ -108,17 +110,18 @@ def assemble_results(
                                                method=EMethod.PERIODOGRAM)
       out_unit[name] = 'bpm'
       out_conf[name] = float(np.mean(conf[resp_idx]))
-      out_note[name] = f'Estimate of the global respiratory rate using {method_name}{confidence_note_scalar}'
+      out_note[name] = f'Estimate of the global respiratory rate using {method.name}{confidence_note_scalar}'
     elif name == 'ppg_waveform':
       ppg_ir_idx = train_sig_names.index('ppg_waveform')
       out_data[name] = sig[ppg_ir_idx]
       out_unit[name] = 'unitless'
       out_conf[name] = conf[ppg_ir_idx]
-      out_note[name] = f'Estimate of the ppg waveform using {method_name}{confidence_note_data}'
+      out_note[name] = f'Estimate of the ppg waveform using {method.name}{confidence_note_data}'
     elif name == 'respiratory_waveform':
       resp_idx = train_sig_names.index('respiratory_waveform')
       out_data[name] = sig[resp_idx]
       out_unit[name] = 'unitless'
       out_conf[name] = conf[resp_idx]
-      out_note[name] = f'Estimate of the respiratory waveform using {method_name}{confidence_note_data}'
+      out_note[name] = f'Estimate of the respiratory waveform using {method.name}{confidence_note_data}'
+    # TODO Compute HRV features
   return out_data, out_unit, out_conf, out_note, live
