@@ -85,16 +85,16 @@ class VitalLens:
       self.rppg = VitalLensRPPGMethod(
         mode=mode,
         api_key=self.api_key,
-        requested_method=method
+        requested_model=method
       )
     else:
       self.config = load_config(method.name.lower() + ".yaml")
       if self.config['model'] == 'g':
-        self.rppg = GRPPGMethod(config=self.config, mode=mode)
+        self.rppg = GRPPGMethod(mode=mode)
       elif self.config['model'] == 'chrom':
-        self.rppg = CHROMRPPGMethod(config=self.config, mode=mode)
+        self.rppg = CHROMRPPGMethod(mode=mode)
       elif self.config['model'] == 'pos':
-        self.rppg = POSRPPGMethod(config=self.config, mode=mode)
+        self.rppg = POSRPPGMethod(mode=mode)
       else:
         raise ValueError(f"Method {self.config['model']} not implemented!")
     self.detect_faces = detect_faces
@@ -221,7 +221,7 @@ class VitalLens:
       }}
       # Parse vital signs results
       vital_signs_results = {}
-      for name in self.config['signals']:
+      for name in self.rppg.signals:
         if name in data and name in unit and name in conf and name in note:
           vital_signs_results[name] = {
             f"{'data' if 'waveform' in name else 'value'}": data[name],
@@ -231,7 +231,7 @@ class VitalLens:
           }
       if self.estimate_rolling_vitals:
         try:
-          if 'ppg_waveform' in self.config['signals']:
+          if 'ppg_waveform' in self.rppg.signals:
             rolling_hr = estimate_hr_from_signal(
               signal=data['ppg_waveform'],
               f_s=fps,
@@ -252,7 +252,7 @@ class VitalLens:
               'confidence': rolling_conf,
               'note': 'Estimate of the rolling heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
-          if 'respiratory_waveform' in self.config['signals']:
+          if 'respiratory_waveform' in self.rppg.signals:
             rolling_rr = estimate_rr_from_signal(
               signal=data['respiratory_waveform'],
               f_s=fps,

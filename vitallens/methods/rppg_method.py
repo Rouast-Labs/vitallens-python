@@ -45,7 +45,6 @@ class RPPGMethod(metaclass=abc.ABCMeta):
       config: The method's config dict
     """
     self.roi_method = config['roi_method']
-    self.signals = config['signals']
     self.fps_target = config['fps_target']
     self.est_window_length = config['est_window_length']
     self.est_window_overlap = config['est_window_overlap']
