@@ -26,13 +26,14 @@ import sys
 sys.path.append('../vitallens-python')
 
 from vitallens.client import Method
+from vitallens.enums import METHOD_TO_NAME
 from vitallens.utils import load_config
 from vitallens.utils import merge_faces, check_faces, check_faces_in_roi
 
-@pytest.mark.parametrize("method", [m for m in Method])
+@pytest.mark.parametrize("method", [Method.VITALLENS_1_0, Method.VITALLENS_2_0, Method.G, Method.POS, Method.CHROM])
 def test_load_config(method):
-  config = load_config(method.name.lower() + ".yaml")
-  assert config['model'] == method.name.lower()
+  config = load_config(METHOD_TO_NAME[method] + ".yaml")
+  assert config['model'] == METHOD_TO_NAME[method]
 
 @pytest.mark.parametrize("file", [True, False])
 def test_probe_video_inputs(request, file):
