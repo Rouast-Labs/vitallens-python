@@ -30,7 +30,7 @@ input_size: 40
 # Number of inputs
 n_inputs: 5
 # List estimated signals
-signals: ['heart_rate', 'respiratory_rate', 'ppg_waveform', 'respiratory_waveform', 'hrv_sdnn', 'hrv_rmssd', 'hrv_lfhf']
+signals: ['heart_rate', 'respiratory_rate', 'ppg_waveform', 'respiratory_waveform', 'hrv_sdnn', 'hrv_rmssd', 'hrv_lf_hf']
 
 ##### rPPG settings #####
 # The ROI used as model input

@@ -56,6 +56,7 @@ class SimpleRPPGMethod(RPPGMethod):
       config: The method's config dict
     """
     super(SimpleRPPGMethod, self).parse_config(config=config)
+    self.signals = config['signals']
     if self.op_mode == Mode.BURST:
       self.buffer = SignalBuffer(size=self.est_window_length, ndim=2)
   @abc.abstractmethod

@@ -73,7 +73,6 @@ class VitalLensRPPGMethod(RPPGMethod):
 
     self.parse_config(self.model_configs[self.resolved_model] if self.resolved_model else {
       'roi_method': 'upper_body_cropped',
-      'signals': None,
       'fps_target': 30,
       'est_window_overlap': 0,
       'est_window_length': 0
@@ -185,7 +184,7 @@ class VitalLensRPPGMethod(RPPGMethod):
                             fps=fps,
                             train_sig_names=['ppg_waveform', 'respiratory_waveform'],
                             pred_signals=self.signals,
-                            method=self.resolved_model,
+                            method=self.resolved_model if self.resolved_model else Method.VITALLENS_1_0,
                             min_t_hr=CALC_HR_MIN_T,
                             min_t_rr=CALC_RR_MIN_T,
                             can_provide_confidence=True)

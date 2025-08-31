@@ -19,8 +19,11 @@
 # SOFTWARE.
 
 import numpy as np
-from prpy.numpy.physio import EScope, EMethod
+from prpy.numpy.physio import EScope, EMethod, HRVMetric
 from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
+from prpy.numpy.physio import estimate_hrv_from_signal
+from prpy.numpy.physio import CALC_HR_MIN_T, CALC_HRV_SDNN_MIN_T, CALC_RR_MIN_T
+from prpy.numpy.physio import CALC_HRV_RMSSD_MIN_T, CALC_HRV_LF_HF_MIN_T
 from typing import Tuple
 
 from vitallens.enums import Method
@@ -63,8 +66,11 @@ def assemble_results(
     pred_signals: list,
     method: Method,
     can_provide_confidence: bool = True,
-    min_t_hr: float = 2.,
-    min_t_rr: float = 4.
+    min_t_hr: float = CALC_HR_MIN_T,
+    min_t_rr: float = CALC_RR_MIN_T,
+    min_t_hrv_sdnn: float = CALC_HRV_SDNN_MIN_T,
+    min_t_hrv_rmssd: float = CALC_HRV_RMSSD_MIN_T,
+    min_t_hrv_lf_hf: float = CALC_HRV_LF_HF_MIN_T
   ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
   """Assemble rPPG method results in the format expected by the API.
   Args:
@@ -93,29 +99,39 @@ def assemble_results(
   confidence_note_scalar = ', along with a confidence level between 0 and 1.' if can_provide_confidence else '. This method is not capable of providing a confidence estimate, hence returning 1.'
   confidence_note_data = ', along with frame-wise confidences between 0 and 1.' if can_provide_confidence else '. This method is not capable of providing a confidence estimate, hence returning 1.'
   for name in pred_signals:
-    if name == 'heart_rate' and 'ppg_waveform' in train_sig_names and sig_t > min_t_hr:
-      ppg_ir_idx = train_sig_names.index('ppg_waveform')
-      out_data[name] = estimate_hr_from_signal(signal=sig[ppg_ir_idx],
-                                               f_s=fps,
-                                               scope=EScope.GLOBAL,
-                                               method=EMethod.PERIODOGRAM)
+    if name == 'heart_rate' and 'ppg_waveform' in train_sig_names:
+      if sig_t >= min_t_hr:
+        ppg_idx = train_sig_names.index('ppg_waveform')
+        out_data[name] = estimate_hr_from_signal(signal=sig[ppg_idx],
+                                                f_s=fps,
+                                                scope=EScope.GLOBAL,
+                                                method=EMethod.PERIODOGRAM)
+        out_conf[name] = float(np.mean(conf[ppg_idx]))
+        out_note[name] = f'Estimate of the global heart rate using {method.name}{confidence_note_scalar}'
+      else:
+        out_data[name] = np.nan
+        out_conf[name] = np.nan
+        out_note[name] = f'Estimate of the global heart rate using {method.name}. Too few values available to estimate.'
       out_unit[name] = 'bpm'
-      out_conf[name] = float(np.mean(conf[ppg_ir_idx]))
-      out_note[name] = f'Estimate of the global heart rate using {method.name}{confidence_note_scalar}'
-    elif name == 'respiratory_rate' and 'respiratory_waveform' in train_sig_names and sig_t > min_t_rr:
-      resp_idx = train_sig_names.index('respiratory_waveform')
-      out_data[name] = estimate_rr_from_signal(signal=sig[resp_idx],
-                                               f_s=fps,
-                                               scope=EScope.GLOBAL,
-                                               method=EMethod.PERIODOGRAM)
+    elif name == 'respiratory_rate' and 'respiratory_waveform' in train_sig_names:
+      if sig_t >= min_t_rr:
+        resp_idx = train_sig_names.index('respiratory_waveform')
+        out_data[name] = estimate_rr_from_signal(signal=sig[resp_idx],
+                                                f_s=fps,
+                                                scope=EScope.GLOBAL,
+                                                method=EMethod.PERIODOGRAM)
+        out_conf[name] = float(np.mean(conf[resp_idx]))
+        out_note[name] = f'Estimate of the global respiratory rate using {method.name}{confidence_note_scalar}'
+      else:
+        out_data[name] = np.nan
+        out_conf[name] = np.nan
+        out_note[name] = f'Estimate of the global respiratory rate using {method.name}. Too few values available to estimate.'
       out_unit[name] = 'bpm'
-      out_conf[name] = float(np.mean(conf[resp_idx]))
-      out_note[name] = f'Estimate of the global respiratory rate using {method.name}{confidence_note_scalar}'
     elif name == 'ppg_waveform':
-      ppg_ir_idx = train_sig_names.index('ppg_waveform')
-      out_data[name] = sig[ppg_ir_idx]
+      ppg_idx = train_sig_names.index('ppg_waveform')
+      out_data[name] = sig[ppg_idx]
       out_unit[name] = 'unitless'
-      out_conf[name] = conf[ppg_ir_idx]
+      out_conf[name] = conf[ppg_idx]
       out_note[name] = f'Estimate of the ppg waveform using {method.name}{confidence_note_data}'
     elif name == 'respiratory_waveform':
       resp_idx = train_sig_names.index('respiratory_waveform')
@@ -123,5 +139,58 @@ def assemble_results(
       out_unit[name] = 'unitless'
       out_conf[name] = conf[resp_idx]
       out_note[name] = f'Estimate of the respiratory waveform using {method.name}{confidence_note_data}'
-    # TODO Compute HRV features
+    elif name == 'hrv_sdnn' and 'ppg_waveform' in train_sig_names:
+      if sig_t > min_t_hrv_sdnn:
+        ppg_idx = train_sig_names.index('ppg_waveform')
+        hrv, hrv_conf = estimate_hrv_from_signal(
+          signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.SDNN,
+          confidence=conf[ppg_idx], confidence_threshold=0.,
+          min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
+          height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
+          scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_sdnn
+        )
+        out_data[name] = hrv
+        out_conf[name] = hrv_conf
+        out_note[name] = f'Estimate of the global heart rate variability (SDNN) using {method.name}{confidence_note_scalar}'
+      else:
+        out_data[name] = np.nan
+        out_conf[name] = np.nan
+        out_note[name] = f'Estimate of the global heart rate variability (SDNN) using {method.name}. Too few values available to estimate.'  
+      out_unit[name] = 'ms'
+    elif name == 'hrv_rmssd' and 'ppg_waveform' in train_sig_names:
+      if sig_t > min_t_hrv_rmssd:
+        ppg_idx = train_sig_names.index('ppg_waveform')
+        hrv, hrv_conf = estimate_hrv_from_signal(
+          signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.RMSSD,
+          confidence=conf[ppg_idx], confidence_threshold=0.,
+          min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
+          height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
+          scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_rmssd
+        )
+        out_data[name] = hrv
+        out_conf[name] = hrv_conf
+        out_note[name] = f'Estimate of the global heart rate variability (RMSSD) using {method.name}{confidence_note_scalar}'
+      else:
+        out_data[name] = np.nan
+        out_conf[name] = np.nan
+        out_note[name] = f'Estimate of the global heart rate variability (RMSSD) using {method.name}. Too few values available to estimate.'  
+      out_unit[name] = 'ms'
+    elif name == 'hrv_lf_hf' and 'ppg_waveform' in train_sig_names:
+      if sig_t > min_t_hrv_lf_hf:
+        ppg_idx = train_sig_names.index('ppg_waveform')
+        hrv, hrv_conf = estimate_hrv_from_signal(
+          signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.LF_HF,
+          confidence=conf[ppg_idx], confidence_threshold=0.,
+          min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
+          height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
+          scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_lf_hf
+        )
+        out_data[name] = hrv
+        out_conf[name] = hrv_conf
+        out_note[name] = f'Estimate of the global heart rate variability (LF/HF) using {method.name}{confidence_note_scalar}'
+      else:
+        out_data[name] = np.nan
+        out_conf[name] = np.nan
+        out_note[name] = f'Estimate of the global heart rate variability (LF/HF) using {method.name}. Too few values available to estimate.'  
+      out_unit[name] = 'unitless'
   return out_data, out_unit, out_conf, out_note, live
