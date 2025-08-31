@@ -32,8 +32,7 @@ from vitallens.utils import load_config
 
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_CHROMRPPGMethod(request, override_fps_target):
-  config = load_config("chrom.yaml")
-  method = CHROMRPPGMethod(config=config, mode=Mode.BATCH)
+  method = CHROMRPPGMethod(mode=Mode.BATCH)
   res = method.algorithm(np.random.rand(100, 3), fps=30.)
   assert res.shape == (100,)
   res = method.pulse_filter(res, fps=30.)
@@ -56,8 +55,7 @@ def test_CHROMRPPGMethod(request, override_fps_target):
 
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_GRPPGMethod(request, override_fps_target):
-  config = load_config("g.yaml")
-  method = GRPPGMethod(config=config, mode=Mode.BATCH)
+  method = GRPPGMethod(mode=Mode.BATCH)
   res = method.algorithm(np.random.rand(100, 3), fps=30.)
   assert res.shape == (100,)
   res = method.pulse_filter(res, fps=30.)
@@ -80,8 +78,7 @@ def test_GRPPGMethod(request, override_fps_target):
 
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_POSRPPGMethod(request, override_fps_target):
-  config = load_config("pos.yaml")
-  method = POSRPPGMethod(config=config, mode=Mode.BATCH)
+  method = POSRPPGMethod(mode=Mode.BATCH)
   res = method.algorithm(np.random.rand(100, 3), fps=30.)
   assert res.shape == (100,)
   res = method.pulse_filter(res, fps=30.)
