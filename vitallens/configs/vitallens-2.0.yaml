@@ -24,7 +24,7 @@
 
 ##### Model settings #####
 # The model name
-model: 'vitallens'
+model: 'vitallens-2.0'
 # Size of the input
 input_size: 40
 # Number of inputs
