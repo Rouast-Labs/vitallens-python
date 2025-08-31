@@ -46,10 +46,18 @@ class SimpleRPPGMethod(RPPGMethod):
       mode: The operation mode
     """
     super(SimpleRPPGMethod, self).__init__(config=config, mode=mode)
-    self.model = config['model']
-    self.roi_method = config['roi_method']
-    self.signals = config['signals']
-    if mode == Mode.BURST:
+    self.n_inputs = 1
+  def parse_config(
+      self,
+      config: dict
+    ):
+    """Set properties based on the config.
+    
+    Args:
+      config: The method's config dict
+    """
+    super(SimpleRPPGMethod, self).parse_config(config=config)
+    if self.op_mode == Mode.BURST:
       self.buffer = SignalBuffer(size=self.est_window_length, ndim=2)
   @abc.abstractmethod
   def algorithm(
@@ -133,7 +141,7 @@ class SimpleRPPGMethod(RPPGMethod):
                             fps=fps,
                             train_sig_names=['ppg_waveform'],
                             pred_signals=self.signals,
-                            method_name=self.model,
+                            method=self.method,
                             min_t_hr=CALC_HR_MIN_T,
                             can_provide_confidence=False)
   def reset(self):

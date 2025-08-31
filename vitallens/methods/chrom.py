@@ -26,23 +26,25 @@ from prpy.numpy.filters import detrend, butter_bandpass
 from prpy.numpy.physio import detrend_lambda_for_hr_response
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
-from vitallens.enums import Mode
+from vitallens.enums import Method, Mode, METHOD_TO_NAME
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
+from vitallens.utils import load_config
 
 class CHROMRPPGMethod(SimpleRPPGMethod):
   """The CHROM algorithm by De Haan and Jeanne (2013)"""
   def __init__(
       self,
-      config: dict,
       mode: Mode
     ):
     """Initialize the `CHROMRPPGMethod`
     
     Args:
-      config: The configuration dict
       mode: The operation mode
     """
-    super(CHROMRPPGMethod, self).__init__(config=config, mode=mode)
+    super(CHROMRPPGMethod, self).__init__(mode=mode)
+    self.method = Method.CHROM
+    config = load_config(METHOD_TO_NAME[self.method] + '.yaml')
+    self.parse_config(config)
   def algorithm(
       self,
       rgb: np.ndarray,

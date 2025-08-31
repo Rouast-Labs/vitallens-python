@@ -73,29 +73,35 @@ class VitalLens:
       export_dir: The directory to which json files are written.
     """
     self.api_key = api_key
-    # Load the config and model
-    self.config = load_config(method.name.lower() + ".yaml")
     self.method = method
     self.mode = mode
-    if self.config['model'] == 'g':
-      self.rppg = GRPPGMethod(config=self.config, mode=mode)
-    elif self.config['model'] == 'chrom':
-      self.rppg = CHROMRPPGMethod(config=self.config, mode=mode)
-    elif self.config['model'] == 'pos':
-      self.rppg = POSRPPGMethod(config=self.config, mode=mode)
-    elif self.config['model'] == 'vitallens':
+    if method in [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_2_0]:
       if self.api_key is None or self.api_key == '':
-        raise ValueError("An API key is required to use Method.VITALLENS, but was not provided. "
-                         "Get one for free at https://www.rouast.com/api.")
-      self.rppg = VitalLensRPPGMethod(config=self.config, mode=mode, api_key=self.api_key)
+        raise ValueError(
+          f"An API key is required to use {method.name}. "
+          "Get one for free at https://www.rouast.com/api."
+        )
+      self.config = {'model': 'vitallens'}
+      self.rppg = VitalLensRPPGMethod(
+        mode=mode,
+        api_key=self.api_key,
+        requested_method=method
+      )
     else:
-      raise ValueError(f"Method {self.config['model']} not implemented!")
+      self.config = load_config(method.name.lower() + ".yaml")
+      if self.config['model'] == 'g':
+        self.rppg = GRPPGMethod(config=self.config, mode=mode)
+      elif self.config['model'] == 'chrom':
+        self.rppg = CHROMRPPGMethod(config=self.config, mode=mode)
+      elif self.config['model'] == 'pos':
+        self.rppg = POSRPPGMethod(config=self.config, mode=mode)
+      else:
+        raise ValueError(f"Method {self.config['model']} not implemented!")
     self.detect_faces = detect_faces
     self.estimate_rolling_vitals = estimate_rolling_vitals
     self.export_to_json = export_to_json
     self.export_dir = export_dir
     if detect_faces:
-      # Initialise face detector
       self.face_detector = FaceDetector(
         max_faces=fdet_max_faces, fs=fdet_fs, score_threshold=fdet_score_threshold,
         iou_threshold=fdet_iou_threshold)

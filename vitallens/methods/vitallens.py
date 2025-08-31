@@ -37,37 +37,69 @@ import requests
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
-from vitallens.enums import Mode
+from vitallens.enums import Method, Mode, METHOD_TO_NAME, NAME_TO_METHOD
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows, assemble_results
-from vitallens.utils import check_faces_in_roi
+from vitallens.utils import check_faces_in_roi, load_config
+
+VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_2_0]
 
 class VitalLensRPPGMethod(RPPGMethod):
   """RPPG method using the VitalLens API for inference"""
   def __init__(
       self,
-      config: dict,
       mode: Mode,
-      api_key: str
+      api_key: str,
+      requested_model: Method
     ):
     """Initialize the `VitalLensRPPGMethod`
     
     Args:
-      config: The configuration dict
       mode: The operation mode
       api_key: The API key
+      requested_model: The requested VitalLens model variant
     """
-    super(VitalLensRPPGMethod, self).__init__(config=config, mode=mode)
+    super(VitalLensRPPGMethod, self).__init__(mode=mode)
+    
+    self.model_configs = {
+      Method.VITALLENS_1_0: load_config('vitallens-1.0.yaml'),
+      Method.VITALLENS_2_0: load_config('vitallens-2.0.yaml')
+    }
+
     self.api_key = api_key
-    self.model = config['model']
-    self.input_size = config['input_size']
-    self.n_inputs = config['n_inputs']
-    self.roi_method = config['roi_method']
-    self.signals = config['signals']
+    self.requested_model = requested_model
+    self.resolved_model = requested_model if requested_model in VITALLENS_MODELS else None
+
+    self.parse_config(self.model_configs[self.resolved_model] if self.resolved_model else {
+      'roi_method': 'upper_body_cropped',
+      'signals': None,
+      'fps_target': 30,
+      'est_window_overlap': 0,
+      'est_window_length': 0
+    })
+
     if mode == Mode.BURST:
       self.state = None
       self.input_buffer = None
+  @property
+  def n_inputs(self) -> int:
+    """Dynamically get n_inputs based on the resolved model."""
+    if self.resolved_model:
+      return self.model_configs[self.resolved_model]['n_inputs']
+    return self.model_configs[Method.VITALLENS_1_0]['n_inputs']
+  @property
+  def signals(self) -> list:
+    """Dynamically get signals based on the resolved model."""
+    if self.resolved_model:
+      return self.model_configs[self.resolved_model]['signals']
+    return self.model_configs[Method.VITALLENS_1_0]['signals']
+  @property
+  def input_size(self) -> int:
+    """Dynamically get input_size based on the resolved model."""
+    if self.resolved_model:
+      return self.model_configs[self.resolved_model]['input_size']
+    return self.model_configs[Method.VITALLENS_1_0]['input_size']
   def __call__(
       self,
       inputs: Union[np.ndarray, str],
@@ -153,7 +185,7 @@ class VitalLensRPPGMethod(RPPGMethod):
                             fps=fps,
                             train_sig_names=['ppg_waveform', 'respiratory_waveform'],
                             pred_signals=self.signals,
-                            method_name=self.model,
+                            method=self.resolved_model,
                             min_t_hr=CALC_HR_MIN_T,
                             min_t_rr=CALC_RR_MIN_T,
                             can_provide_confidence=True)
@@ -241,6 +273,14 @@ class VitalLensRPPGMethod(RPPGMethod):
     # -- by not sending fps information, ask endpoint not to do any processing
     headers = {"x-api-key": self.api_key}
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": "vitallens-python"}
+    # Infer model to request
+    model_to_request = None
+    if self.requested_model in VITALLENS_MODELS:
+      model_to_request = self.requested_model
+    elif self.requested_model == Method.VITALLENS and self.resolved_model:
+      model_to_request = self.resolved_model
+    if model_to_request:
+      payload['model'] = METHOD_TO_NAME[model_to_request]
     if self.op_mode == Mode.BURST:
       if self.state is not None:
         # State and frame buffer have been initialized
@@ -267,6 +307,10 @@ class VitalLensRPPGMethod(RPPGMethod):
         raise VitalLensAPIError(f"Error occurred in the API: {response_body['message']}")
       else:
         raise Exception(f"Error {response.status_code}: {response_body['message']}")
+    # Maybe set resolved model
+    if not self.resolved_model and 'model_used' in response_body and response_body['model_used'] in NAME_TO_METHOD:
+      self.resolved_model = NAME_TO_METHOD.get(response_body['model_used'])
+      logging.info(f"Auto-detected and using model: {self.resolved_model.name}")
     # Parse response
     sig_ds = np.stack([
       np.asarray(response_body["vital_signs"]["ppg_waveform"]["data"]),

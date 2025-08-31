@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Philipp Rouast
+# Copyright (c) 2025 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,26 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+###############################################################################
+#                    Settings for vitallens-2.0 method                        #
+###############################################################################
 
-class Method(IntEnum):
-  VITALLENS = 1           # Automatic model selection
-  VITALLENS_1_0 = 2       # Force VitalLens 1.0
-  VITALLENS_2_0 = 3       # Force VitalLens 2.0
-  G = 4
-  CHROM = 5
-  POS = 6
+##### Model settings #####
+# The model name
+model: 'vitallens'
+# Size of the input
+input_size: 40
+# Number of inputs
+n_inputs: 5
+# List estimated signals
+signals: ['heart_rate', 'respiratory_rate', 'ppg_waveform', 'respiratory_waveform', 'hrv_sdnn', 'hrv_rmssd', 'hrv_lfhf']
 
-METHOD_TO_NAME = {
-  Method.VITALLENS: 'vitallens',
-  Method.VITALLENS_1_0: 'vitallens-1.0',
-  Method.VITALLENS_2_0: 'vitallens-2.0',
-  Method.G: 'g',
-  Method.CHROM: 'chrom',
-  Method.POS: 'pos'
-}
-
-NAME_TO_METHOD = {
-  'vitallens': Method.VITALLENS,
-  'vitallens-1.0': Method.VITALLENS_1_0,
-  'vitallens-2.0': Method.VITALLENS_2_0,
-  'g': Method.G,
-  'chrom': Method.CHROM,
-  'pos': Method.POS
-}
-
-class Mode(IntEnum):
-  BATCH = 1
-  BURST = 2
+##### rPPG settings #####
+# The ROI used as model input
+roi_method: 'upper_body_cropped'
+# The target sampling frequency [Hz]
+fps_target: 30
+# Overlap of windows during estimation
+est_window_overlap: 0
+# Size of window during estimation
+est_window_length: 0

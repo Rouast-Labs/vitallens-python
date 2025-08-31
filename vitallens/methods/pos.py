@@ -26,14 +26,14 @@ from prpy.numpy.physio import detrend_lambda_for_hr_response
 from prpy.numpy.physio import moving_average_size_for_hr_response
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
-from vitallens.enums import Mode
+from vitallens.enums import Method, Mode, METHOD_TO_NAME
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
+from vitallens.utils import load_config
 
 class POSRPPGMethod(SimpleRPPGMethod):
   """The POS algorithm by Wang et al. (2017)"""
   def __init__(
       self,
-      config: dict,
       mode: Mode
     ):
     """Initialize the `POSRPPGMethod`
@@ -42,7 +42,10 @@ class POSRPPGMethod(SimpleRPPGMethod):
       config: The configuration dict
       mode: The operation mode
     """
-    super(POSRPPGMethod, self).__init__(config=config, mode=mode)
+    super(POSRPPGMethod, self).__init__(mode=mode)
+    self.method = Method.POS
+    config = load_config(METHOD_TO_NAME[self.method] + '.yaml')
+    self.parse_config(config)
   def algorithm(
       self,
       rgb: np.ndarray,
