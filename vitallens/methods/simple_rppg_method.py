@@ -36,7 +36,6 @@ class SimpleRPPGMethod(RPPGMethod):
   """A simple rPPG method using a handcrafted algorithm based on RGB signal trace"""
   def __init__(
       self,
-      config: dict,
       mode: Mode
     ):
     """Initialize the `SimpleRPPGMethod`
@@ -45,7 +44,7 @@ class SimpleRPPGMethod(RPPGMethod):
       config: The configuration dict
       mode: The operation mode
     """
-    super(SimpleRPPGMethod, self).__init__(config=config, mode=mode)
+    super(SimpleRPPGMethod, self).__init__(mode=mode)
     self.n_inputs = 1
   def parse_config(
       self,
