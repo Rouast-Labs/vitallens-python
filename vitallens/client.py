@@ -37,7 +37,7 @@ from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
 from vitallens.methods.vitallens import VitalLensRPPGMethod
 from vitallens.ssd import FaceDetector
-from vitallens.utils import load_config, check_faces, convert_ndarray_to_list
+from vitallens.utils import check_faces, convert_ndarray_to_list
 
 logging.getLogger().setLevel("INFO")
 
@@ -72,31 +72,17 @@ class VitalLens:
       export_to_json: If `True`, write results to a json file.
       export_dir: The directory to which json files are written.
     """
-    self.api_key = api_key
-    self.method = method
     self.mode = mode
     if method in [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_2_0]:
-      if self.api_key is None or self.api_key == '':
-        raise ValueError(
-          f"An API key is required to use {method.name}. "
-          "Get one for free at https://www.rouast.com/api."
-        )
-      self.config = {'model': 'vitallens'}
-      self.rppg = VitalLensRPPGMethod(
-        mode=mode,
-        api_key=self.api_key,
-        requested_model=method
-      )
+      self.rppg = VitalLensRPPGMethod(mode=mode, api_key=api_key, requested_model=method)
+    elif method == Method.G:
+      self.rppg = GRPPGMethod(mode=mode)
+    elif method == Method.CHROM:
+      self.rppg = CHROMRPPGMethod(mode=mode)
+    elif method == Method.POS:
+      self.rppg = POSRPPGMethod(mode=mode)
     else:
-      self.config = load_config(method.name.lower() + ".yaml")
-      if self.config['model'] == 'g':
-        self.rppg = GRPPGMethod(mode=mode)
-      elif self.config['model'] == 'chrom':
-        self.rppg = CHROMRPPGMethod(mode=mode)
-      elif self.config['model'] == 'pos':
-        self.rppg = POSRPPGMethod(mode=mode)
-      else:
-        raise ValueError(f"Method {self.config['model']} not implemented!")
+      raise ValueError(f"Method {self.config['model']} not implemented!")
     self.detect_faces = detect_faces
     self.estimate_rolling_vitals = estimate_rolling_vitals
     self.export_to_json = export_to_json
@@ -179,14 +165,15 @@ class VitalLens:
     # Probe inputs
     if self.mode == Mode.BURST and not isinstance(video, np.ndarray):
       raise ValueError("Must provide `np.ndarray` inputs for burst mode.")
-    if self.mode == Mode.BURST and video.shape[0] > (API_MAX_FRAMES - self.rppg.n_inputs + 1):
-      raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES - self.rppg.n_inputs + 1}, but received {video.shape[0]}.")
+    if self.mode == Mode.BURST and isinstance(self.rppg, VitalLensRPPGMethod):
+      if video.shape[0] > (API_MAX_FRAMES - self.rppg.n_inputs + 1):
+        raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES - self.rppg.n_inputs + 1}, but received {video.shape[0]}.")
     inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
     # TODO: Optimize performance of simple rPPG methods for long videos
     # Warning if using long video
     target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
-    if self.method != Method.VITALLENS and inputs_shape[0]/fps*target_fps > 3600:
-      logging.warning("Inference for long videos has yet to be optimized for POS / G / CHROM. This may run out of memory and crash.")
+    if not isinstance(self.rppg, VitalLensRPPGMethod) and (inputs_shape[0] / fps * target_fps) > 3600:
+      logging.warning("Inference for long videos has yet to be optimized for POS / G / CHROM. This may consume significant memory.")
     _, height, width, _ = inputs_shape
     if self.detect_faces:
       # Detect faces
@@ -196,7 +183,7 @@ class VitalLens:
         faces_rel, _ = self.face_detector(inputs=video, n_frames=inputs_shape[0], fps=fps)
       # If no faces detected: return empty list
       if len(faces_rel) == 0:
-        logging.warning("No faces to analyze")
+        logging.warning("No faces detected to in the video")
         return []
       # Convert to absolute units
       faces = (faces_rel * [width, height, width, height]).astype(np.int64)
@@ -208,23 +195,28 @@ class VitalLens:
     results = []
     for face in faces:
       # Run selected rPPG method
-      data, unit, conf, note, live = self.rppg(inputs=video,
-                                               faces=face,
-                                               fps=fps,
-                                               override_fps_target=override_fps_target,
-                                               override_global_parse=override_global_parse)
+      data, unit, conf, note, live = self.rppg(
+        inputs=video,
+        faces=face,
+        fps=fps,
+        override_fps_target=override_fps_target,
+        override_global_parse=override_global_parse
+      )
       # Parse face results
-      face_result = {'face': {
-        'coordinates': face,
-        'confidence': live,
-        'note': "Face detection coordinates for this face, along with live confidence levels."
-      }}
+      face_result = {
+        'face': {
+          'coordinates': face,
+          'confidence': live,
+          'note': "Face detection coordinates for this face, along with live confidence levels."
+        },
+        'vital_signs': {},
+        'message': DISCLAIMER
+      }
       # Parse vital signs results
-      vital_signs_results = {}
       for name in self.rppg.signals:
         if name in data and name in unit and name in conf and name in note:
-          vital_signs_results[name] = {
-            f"{'data' if 'waveform' in name else 'value'}": data[name],
+          face_result['vital_signs'][name] = {
+            ('data' if 'waveform' in name else 'value'): data[name],
             'unit': unit[name],
             'confidence': conf[name],
             'note': note[name]
@@ -233,50 +225,35 @@ class VitalLens:
         try:
           if 'ppg_waveform' in self.rppg.signals:
             rolling_hr = estimate_hr_from_signal(
-              signal=data['ppg_waveform'],
-              f_s=fps,
-              window_size=CALC_HR_MAX_T,
-              scope=EScope.ROLLING,
-              method=EMethod.PERIODOGRAM
+              signal=data['ppg_waveform'], f_s=fps, window_size=CALC_HR_MAX_T,
+              scope=EScope.ROLLING, method=EMethod.PERIODOGRAM
             )
             rolling_conf = rolling_calc(
-              x=conf['ppg_waveform'],
-              calc_fn=lambda x: np.nanmean(x),
-              min_window_size=CALC_HR_MAX_T,
-              max_window_size=CALC_HR_MAX_T,
+              x=conf['ppg_waveform'], calc_fn=lambda x: np.nanmean(x),
+              min_window_size=CALC_HR_MAX_T, max_window_size=CALC_HR_MAX_T,
               overlap=CALC_HR_MAX_T // 2
             )
-            vital_signs_results['rolling_heart_rate'] = {
-              'data': rolling_hr,
-              'unit': 'bpm',
-              'confidence': rolling_conf,
+            face_result['vital_signs']['rolling_heart_rate'] = {
+              'data': rolling_hr, 'unit': 'bpm', 'confidence': rolling_conf,
               'note': 'Estimate of the rolling heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
           if 'respiratory_waveform' in self.rppg.signals:
             rolling_rr = estimate_rr_from_signal(
-              signal=data['respiratory_waveform'],
-              f_s=fps,
-              window_size=CALC_RR_MAX_T,
-              scope=EScope.ROLLING,
-              method=EMethod.PERIODOGRAM
+              signal=data['respiratory_waveform'], f_s=fps, window_size=CALC_RR_MAX_T,
+              scope=EScope.ROLLING, method=EMethod.PERIODOGRAM
             )
             rolling_conf = rolling_calc(
-              x=conf['respiratory_waveform'],
-              calc_fn=lambda x: np.nanmean(x),
-              min_window_size=CALC_RR_MAX_T,
-              max_window_size=CALC_RR_MAX_T,
+              x=conf['respiratory_waveform'], calc_fn=lambda x: np.nanmean(x),
+              min_window_size=CALC_RR_MAX_T, max_window_size=CALC_RR_MAX_T,
               overlap=CALC_RR_MAX_T // 2
             )
-            vital_signs_results['rolling_respiratory_rate'] = {
-              'data': rolling_rr,
-              'unit': 'bpm',
-              'confidence': rolling_conf,
+            face_result['vital_signs']['rolling_respiratory_rate'] = {
+              'data': rolling_rr, 'unit': 'bpm', 'confidence': rolling_conf,
               'note': 'Estimate of the rolling respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
             }
+          # TODO: Implement rolling HRV
         except ValueError as e:
           logging.debug(f"Issue while computing rolling vitals: {e}")
-      face_result['vital_signs'] = vital_signs_results
-      face_result['message'] = DISCLAIMER
       results.append(face_result)
     # Export to json
     if self.export_to_json:
