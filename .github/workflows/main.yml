@@ -37,7 +37,9 @@ jobs:
           python -m pip_audit
       - name: Set development API_URL for non-main branches
         if: github.ref != 'refs/heads/main'
-        run: echo "API_URL=https://api.rouast.com/vitallens-dev/file" >> $GITHUB_ENV
+        run: |
+          echo "API_URL=https://api.rouast.com/vitallens-dev/file" >> $GITHUB_ENV
+          echo "API_RESOLVE_URL=https://api.rouast.com/vitallens-dev/resolve-model" >> $GITHUB_ENV
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -74,7 +76,9 @@ jobs:
           python -m pip_audit
       - name: Set development API_URL for non-main branches
         if: github.ref != 'refs/heads/main'
-        run: echo "API_URL=https://api.rouast.com/vitallens-dev/file" | Out-File -FilePath $env:GITHUB_ENV -Append
+        run: |
+          echo "API_URL=https://api.rouast.com/vitallens-dev/file" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "API_RESOLVE_URL=https://api.rouast.com/vitallens-dev/resolve-model" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics

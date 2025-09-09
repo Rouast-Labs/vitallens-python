@@ -28,7 +28,6 @@ from vitallens.enums import Mode
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
-from vitallens.utils import load_config
 
 @pytest.mark.parametrize("override_fps_target", [None, 15])
 def test_CHROMRPPGMethod(request, override_fps_target):

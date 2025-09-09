@@ -21,29 +21,8 @@
 import logging
 import numpy as np
 import os
-import sys
 from typing import Union
 import urllib.request
-import yaml
-
-if sys.version_info >= (3, 9):
-  from importlib.resources import open_binary
-else:
-  from importlib_resources import open_binary
-
-from vitallens.constants import API_MIN_FRAMES, VIDEO_PARSE_ERROR
-
-def load_config(filename: str) -> dict:
-  """Load a yaml config file.
-
-  Args:
-    filename: The filename of the yaml config file
-  Returns:
-    loaded: The contents of the yaml config file
-  """
-  with open_binary('vitallens.configs', filename) as f:
-    loaded = yaml.load(f, Loader=yaml.Loader)
-  return loaded
 
 def download_file(url: str, dest: str):
   """Download a file if necessary.
