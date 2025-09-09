@@ -23,7 +23,7 @@ from prpy.numpy.physio import EScope, EMethod, HRVMetric
 from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
 from prpy.numpy.physio import estimate_hrv_from_signal
 from prpy.numpy.physio import CALC_HR_MIN_T, CALC_HRV_SDNN_MIN_T, CALC_RR_MIN_T
-from prpy.numpy.physio import CALC_HRV_RMSSD_MIN_T, CALC_HRV_LF_HF_MIN_T
+from prpy.numpy.physio import CALC_HRV_RMSSD_MIN_T, CALC_HRV_LFHF_MIN_T
 from typing import Tuple
 
 from vitallens.enums import Method
@@ -70,7 +70,7 @@ def assemble_results(
     min_t_rr: float = CALC_RR_MIN_T,
     min_t_hrv_sdnn: float = CALC_HRV_SDNN_MIN_T,
     min_t_hrv_rmssd: float = CALC_HRV_RMSSD_MIN_T,
-    min_t_hrv_lf_hf: float = CALC_HRV_LF_HF_MIN_T
+    min_t_hrv_lfhf: float = CALC_HRV_LFHF_MIN_T
   ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
   """Assemble rPPG method results in the format expected by the API.
   Args:
@@ -140,7 +140,7 @@ def assemble_results(
       out_conf[name] = conf[resp_idx]
       out_note[name] = f'Estimate of the respiratory waveform using {method.name}{confidence_note_data}'
     elif name == 'hrv_sdnn' and 'ppg_waveform' in train_sig_names:
-      if sig_t > min_t_hrv_sdnn:
+      if sig_t >= min_t_hrv_sdnn:
         ppg_idx = train_sig_names.index('ppg_waveform')
         hrv, hrv_conf = estimate_hrv_from_signal(
           signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.SDNN,
@@ -158,7 +158,7 @@ def assemble_results(
         out_note[name] = f'Estimate of the global heart rate variability (SDNN) using {method.name}. Too few values available to estimate.'  
       out_unit[name] = 'ms'
     elif name == 'hrv_rmssd' and 'ppg_waveform' in train_sig_names:
-      if sig_t > min_t_hrv_rmssd:
+      if sig_t >= min_t_hrv_rmssd:
         ppg_idx = train_sig_names.index('ppg_waveform')
         hrv, hrv_conf = estimate_hrv_from_signal(
           signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.RMSSD,
@@ -175,15 +175,15 @@ def assemble_results(
         out_conf[name] = np.nan
         out_note[name] = f'Estimate of the global heart rate variability (RMSSD) using {method.name}. Too few values available to estimate.'  
       out_unit[name] = 'ms'
-    elif name == 'hrv_lf_hf' and 'ppg_waveform' in train_sig_names:
-      if sig_t > min_t_hrv_lf_hf:
+    elif name == 'hrv_lfhf' and 'ppg_waveform' in train_sig_names:
+      if sig_t >= min_t_hrv_lfhf:
         ppg_idx = train_sig_names.index('ppg_waveform')
         hrv, hrv_conf = estimate_hrv_from_signal(
-          signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.LF_HF,
+          signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.LFHF,
           confidence=conf[ppg_idx], confidence_threshold=0.,
           min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
           height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
-          scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_lf_hf
+          scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_lfhf
         )
         out_data[name] = hrv
         out_conf[name] = hrv_conf

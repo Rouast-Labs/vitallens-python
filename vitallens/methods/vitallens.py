@@ -36,14 +36,46 @@ import logging
 import requests
 from typing import Union, Tuple
 
-from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP
+from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP, API_RESOLVE_URL, VITAL_CODES_TO_NAMES
 from vitallens.enums import Method, Mode, METHOD_TO_NAME, NAME_TO_METHOD
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows, assemble_results
-from vitallens.utils import check_faces_in_roi, load_config
+from vitallens.utils import check_faces_in_roi
 
 VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_2_0]
+
+def _resolve_model_config(api_key: str, requested_method: Method):
+  """Calls the /resolve-model endpoint to get the correct model config."""
+  headers = {"x-api-key": api_key}
+  params = {}
+  if requested_method in VITALLENS_MODELS:
+    params['model'] = METHOD_TO_NAME[requested_method]
+  try:
+    response = requests.get(API_RESOLVE_URL, headers=headers, params=params)
+    response.raise_for_status()
+    data = response.json()
+    # Prepare a clean config dictionary from the API response
+    resolved_config = data['config']
+    resolved_config['model'] = data['resolved_model']
+    if 'supported_vitals' in resolved_config:
+      vitals = resolved_config.pop('supported_vitals')
+      resolved_config['signals'] = {VITAL_CODES_TO_NAMES[c] for c in vitals if c in VITAL_CODES_TO_NAMES}
+    return resolved_config
+  except requests.exceptions.HTTPError as e:
+    error_msg = f"Failed to resolve model config: Status {e.response.status_code}"
+    try:
+      error_details = e.response.json().get('message', e.response.text)
+      error_msg += f" - {error_details}"
+    except json.JSONDecodeError:
+      error_msg += f" - {e.response.text}"
+
+    if e.response.status_code in [401, 403]:
+      raise VitalLensAPIKeyError(error_msg)
+    else:
+      raise VitalLensAPIError(error_msg)
+  except Exception as e:
+    raise VitalLensAPIError(f"An unexpected error occurred while resolving model config: {e}")
 
 class VitalLensRPPGMethod(RPPGMethod):
   """RPPG method using the VitalLens API for inference"""
@@ -58,47 +90,36 @@ class VitalLensRPPGMethod(RPPGMethod):
     Args:
       mode: The operation mode
       api_key: The API key
-      requested_model: The requested VitalLens model variant
+      requested_model: The requested VitalLens model
     """
     super(VitalLensRPPGMethod, self).__init__(mode=mode)
     
-    self.model_configs = {
-      Method.VITALLENS_1_0: load_config('vitallens-1.0.yaml'),
-      Method.VITALLENS_2_0: load_config('vitallens-2.0.yaml')
-    }
-
+    if api_key is None or api_key == '':
+      raise VitalLensAPIKeyError()
     self.api_key = api_key
-    self.requested_model = requested_model
-    self.resolved_model = requested_model if requested_model in VITALLENS_MODELS else None
 
-    self.parse_config(self.model_configs[self.resolved_model] if self.resolved_model else {
-      'roi_method': 'upper_body_cropped',
-      'fps_target': 30,
-      'est_window_overlap': 0,
-      'est_window_length': 0
-    })
+    # Resolve model config
+    resolved_config = _resolve_model_config(api_key=api_key, requested_method=requested_model)
+    self.parse_config(resolved_config)
 
+    self.resolved_model = NAME_TO_METHOD.get(resolved_config['model'])
+    self.requested_model_name = METHOD_TO_NAME.get(requested_model) \
+      if requested_model != Method.VITALLENS else None
+    
     if mode == Mode.BURST:
       self.state = None
       self.input_buffer = None
-  @property
-  def n_inputs(self) -> int:
-    """Dynamically get n_inputs based on the resolved model."""
-    if self.resolved_model:
-      return self.model_configs[self.resolved_model]['n_inputs']
-    return self.model_configs[Method.VITALLENS_1_0]['n_inputs']
-  @property
-  def signals(self) -> list:
-    """Dynamically get signals based on the resolved model."""
-    if self.resolved_model:
-      return self.model_configs[self.resolved_model]['signals']
-    return self.model_configs[Method.VITALLENS_1_0]['signals']
-  @property
-  def input_size(self) -> int:
-    """Dynamically get input_size based on the resolved model."""
-    if self.resolved_model:
-      return self.model_configs[self.resolved_model]['input_size']
-    return self.model_configs[Method.VITALLENS_1_0]['input_size']
+  def parse_config(self, config: dict):
+    """Set properties based on the config."""
+    # TODO check if we can make it so we reuse some code from the parent class
+    self.n_inputs = int(config['n_inputs'])
+    self.input_size = int(config['input_size'])
+    self.fps_target = int(config['fps_target'])
+    self.roi_method = config['roi_method']
+    self.signals = config.get('signals', set())
+    # Not used by this method, but required by base class
+    self.est_window_length = 0
+    self.est_window_overlap = 0
   def __call__(
       self,
       inputs: Union[np.ndarray, str],
@@ -184,7 +205,7 @@ class VitalLensRPPGMethod(RPPGMethod):
                             fps=fps,
                             train_sig_names=['ppg_waveform', 'respiratory_waveform'],
                             pred_signals=self.signals,
-                            method=self.resolved_model if self.resolved_model else Method.VITALLENS_1_0,
+                            method=self.resolved_model,
                             min_t_hr=CALC_HR_MIN_T,
                             min_t_rr=CALC_RR_MIN_T,
                             can_provide_confidence=True)
@@ -272,22 +293,15 @@ class VitalLensRPPGMethod(RPPGMethod):
     # -- by not sending fps information, ask endpoint not to do any processing
     headers = {"x-api-key": self.api_key}
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": "vitallens-python"}
-    # Infer model to request
-    model_to_request = None
-    if self.requested_model in VITALLENS_MODELS:
-      model_to_request = self.requested_model
-    elif self.requested_model == Method.VITALLENS and self.resolved_model:
-      model_to_request = self.resolved_model
-    if model_to_request:
-      payload['model'] = METHOD_TO_NAME[model_to_request]
-    if self.op_mode == Mode.BURST:
-      if self.state is not None:
-        # State and frame buffer have been initialized
-        assert self.input_buffer is not None
-        payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
-        # Adjust idxs
-        idxs = idxs[(self.n_inputs-1):] - (self.n_inputs-1)
-        logging.debug(f"Providing state, which means that {self.n_inputs-1} less frames will be used and results for {self.n_inputs-1} less frames will be returned.")
+    if self.requested_model_name:
+      payload['model'] = self.requested_model_name
+    if self.op_mode == Mode.BURST and self.state is not None:
+      # State and frame buffer have been initialized
+      assert self.input_buffer is not None
+      payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
+      # Adjust idxs
+      idxs = idxs[(self.n_inputs-1):] - (self.n_inputs-1)
+      logging.debug(f"Providing state, which means that {self.n_inputs-1} less frames will be used and results for {self.n_inputs-1} less frames will be returned.")
     # Ask API to process video
     response = requests.post(API_URL, headers=headers, json=payload)
     response_body = json.loads(response.text)
@@ -306,10 +320,6 @@ class VitalLensRPPGMethod(RPPGMethod):
         raise VitalLensAPIError(f"Error occurred in the API: {response_body['message']}")
       else:
         raise Exception(f"Error {response.status_code}: {response_body['message']}")
-    # Maybe set resolved model
-    if not self.resolved_model and 'model_used' in response_body and response_body['model_used'] in NAME_TO_METHOD:
-      self.resolved_model = NAME_TO_METHOD.get(response_body['model_used'])
-      logging.info(f"Auto-detected and using model: {self.resolved_model.name}")
     # Parse response
     sig_ds = np.stack([
       np.asarray(response_body["vital_signs"]["ppg_waveform"]["data"]),

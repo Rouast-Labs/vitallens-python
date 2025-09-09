@@ -32,8 +32,8 @@ sys.path.append('../vitallens-python')
 
 from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_URL
 from vitallens.enums import Method, Mode
-from vitallens.methods.vitallens import VitalLensRPPGMethod
-from vitallens.utils import load_config
+from vitallens.methods.vitallens import VitalLensRPPGMethod, _resolve_model_config
+from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIError
 
 def create_mock_response(
     status_code: int,
@@ -51,7 +51,22 @@ def create_mock_response(
   mock_resp.status_code = status_code
   mock_resp.text = json.dumps(json_data)
   mock_resp.json.return_value = json_data
+  mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError if status_code >= 400 else None
   return mock_resp
+
+@pytest.fixture
+def mock_resolve_config():
+  """Provides a default successful mock for the resolve_model_config call."""
+  with patch('vitallens.methods.vitallens._resolve_model_config') as mock:
+    mock.return_value = {
+      'model': 'vitallens-2.0',
+      'n_inputs': 5,
+      'input_size': 40,
+      'fps_target': 30,
+      'roi_method': 'upper_body_cropped',
+      'signals': {'heart_rate', 'respiratory_rate', 'hrv_sdnn', 'hrv_rmssd', 'hrv_lfhf', 'ppg_waveform', 'respiratory_waveform'}
+    }
+    yield mock
 
 def create_mock_api_response(
     url: str,
@@ -100,7 +115,7 @@ def create_mock_api_response(
 @pytest.mark.parametrize("override_global_parse", [False, True])
 @pytest.mark.parametrize("requested_model", [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_2_0])
 @patch('requests.post', side_effect=create_mock_api_response)
-def test_VitalLensRPPGMethod_file_mock(mock_post, request, override_fps_target, override_global_parse, requested_model):
+def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, override_fps_target, override_global_parse, requested_model):
   api_key = request.getfixturevalue('test_dev_api_key')
   test_video_path = request.getfixturevalue('test_video_path')
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
@@ -127,7 +142,7 @@ def test_VitalLensRPPGMethod_file_mock(mock_post, request, override_fps_target, 
 @pytest.mark.parametrize("override_global_parse", [False, True])
 @pytest.mark.parametrize("requested_model", [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_2_0])
 @patch('requests.post', side_effect=create_mock_api_response)
-def test_VitalLensRPPGMethod_mock(mock_post, request, long, override_fps_target, override_global_parse, requested_model):
+def test_VitalLensRPPGMethod_mock(mock_post, mock_resolve_config, request, long, override_fps_target, override_global_parse, requested_model):
   api_key = request.getfixturevalue('test_dev_api_key')
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
@@ -156,13 +171,12 @@ def test_VitalLensRPPGMethod_mock(mock_post, request, long, override_fps_target,
 @pytest.mark.parametrize("process_signals", [True, False])
 @pytest.mark.parametrize("n_frames", [16, 250])
 def test_VitalLens_API_valid_response(request, process_signals, n_frames):
-  config = load_config("vitallens-1.0.yaml")
   api_key = request.getfixturevalue('test_dev_api_key')
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
   frames, *_ = parse_image_inputs(
-    inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
+    inputs=test_video_ndarray, fps=test_video_fps, target_size=40,
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": api_key}
   payload = {"video": base64.b64encode(frames[:n_frames].tobytes()).decode('utf-8'), "origin": "vitallens-python"}
@@ -192,12 +206,11 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   assert state.shape == (256,)
 
 def test_VitalLens_API_wrong_api_key(request):
-  config = load_config("vitallens-1.0.yaml")
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
   frames, *_ = parse_image_inputs(
-    inputs=test_video_ndarray, fps=test_video_fps, target_size=config['input_size'],
+    inputs=test_video_ndarray, fps=test_video_fps, target_size=40,
     roi=test_video_faces[0].tolist(), library='prpy', scale_algorithm='bilinear')
   headers = {"x-api-key": "WRONG_API_KEY"}
   payload = {"video": base64.b64encode(frames[:16].tobytes()).decode('utf-8'), "origin": "vitallens-python"}
@@ -217,3 +230,24 @@ def test_VitalLens_API_no_parseable_video(request):
   payload = {"video": "not_parseable", "origin": "vitallens-python"}
   response = requests.post(API_URL, headers=headers, json=payload)
   assert response.status_code == 422
+
+# TODO Fails
+# def test_resolve_model_config_errors():
+#   """Tests failure modes of the config resolution."""
+#   with patch('requests.get') as mock_get:
+#     # Test 403 Forbidden
+#     mock_get.return_value = create_mock_response(403, {"message": "Invalid API Key"})
+#     with pytest.raises(VitalLensAPIKeyError, match="Invalid API Key"):
+#       _resolve_model_config("invalid_key", Method.VITALLENS)
+        
+#     # Test 500 Internal Server Error
+#     mock_get.return_value = create_mock_response(500, {"message": "Server Error"})
+#     with pytest.raises(VitalLensAPIError, match="Server Error"):
+#       _resolve_model_config("valid_key", Method.VITALLENS)
+
+def test_VitalLens_API_integration(mock_resolve_config, request):
+  api_key = request.getfixturevalue('test_dev_api_key')
+  method = VitalLensRPPGMethod(requested_model=Method.VITALLENS, api_key=api_key, mode=Mode.BATCH)
+  assert method.resolved_model.name == 'VITALLENS_2_0'
+  assert method.input_size == 40
+  

@@ -26,9 +26,8 @@ from prpy.numpy.physio import detrend_lambda_for_hr_response
 from prpy.numpy.physio import moving_average_size_for_hr_response
 from prpy.numpy.stride_tricks import window_view, reduce_window_view
 
-from vitallens.enums import Method, Mode, METHOD_TO_NAME
+from vitallens.enums import Method, Mode
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
-from vitallens.utils import load_config
 
 class POSRPPGMethod(SimpleRPPGMethod):
   """The POS algorithm by Wang et al. (2017)"""
@@ -44,8 +43,13 @@ class POSRPPGMethod(SimpleRPPGMethod):
     """
     super(POSRPPGMethod, self).__init__(mode=mode)
     self.method = Method.POS
-    config = load_config(METHOD_TO_NAME[self.method] + '.yaml')
-    self.parse_config(config)
+    self.parse_config({
+      'signals': ['heart_rate', 'ppg_waveform'],
+      'roi_method': 'face',
+      'fps_target': 30,
+      'est_window_length': 48,
+      'est_window_overlap': 47
+    })
   def algorithm(
       self,
       rgb: np.ndarray,
