@@ -207,7 +207,16 @@ def estimate_rolling_vitals(
     fps: float,
     video_duration_s: float
   ):
-  """Helper to calculate and append rolling vitals to the results dictionary."""
+  """Helper to calculate and append rolling vitals to the results dictionary.
+  
+  Args:
+    vital_signs_dict: The draft dict of vital signs to be modified
+    data: The estimated data/value for each signal.
+    conf: The estimation confidence for each signal.
+    signals_available: The signals supported by the used rPPG method
+    fps: The frame rate
+    video_duration_s: The duration
+  """
   try:
     if 'ppg_waveform' in signals_available and video_duration_s > CALC_HR_MAX_T:
       rolling_hr = estimate_hr_from_signal(
