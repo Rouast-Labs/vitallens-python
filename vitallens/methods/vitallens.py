@@ -45,8 +45,18 @@ from vitallens.utils import check_faces_in_roi
 
 VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_2_0]
 
-def _resolve_model_config(api_key: str, requested_method: Method):
-  """Calls the /resolve-model endpoint to get the correct model config."""
+def _resolve_model_config(
+    api_key: str,
+    requested_method: Method
+  ) -> dict:
+  """Calls the /resolve-model endpoint to get the correct model config.
+  
+  Args:
+    api_key: The API key
+    requested_method: The requested VitalLens model
+  Returns:
+    resolved_config: The config of the resolved model 
+  """
   headers = {"x-api-key": api_key}
   params = {}
   if requested_method in VITALLENS_MODELS:
@@ -110,7 +120,11 @@ class VitalLensRPPGMethod(RPPGMethod):
       self.state = None
       self.input_buffer = None
   def parse_config(self, config: dict):
-    """Set properties based on the config."""
+    """Set properties based on the config.
+    
+    Args:
+      config: The method's config dict
+    """
     super(VitalLensRPPGMethod, self).parse_config(config=config)
     self.n_inputs = int(config['n_inputs'])
     self.input_size = int(config['input_size'])
