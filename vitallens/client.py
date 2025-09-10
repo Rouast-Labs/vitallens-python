@@ -24,10 +24,6 @@ import logging
 import numpy as np
 import os
 from prpy.numpy.image import probe_image_inputs
-from prpy.numpy.physio import EScope, EMethod
-from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
-from prpy.numpy.physio import CALC_HR_MAX_T, CALC_RR_MAX_T
-from prpy.numpy.rolling import rolling_calc
 from typing import Union
 
 from vitallens.constants import DISCLAIMER, API_MAX_FRAMES
@@ -36,6 +32,7 @@ from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
 from vitallens.methods.vitallens import VitalLensRPPGMethod
+from vitallens.signal import estimate_rolling_vitals
 from vitallens.ssd import FaceDetector
 from vitallens.utils import check_faces, convert_ndarray_to_list
 
@@ -92,6 +89,7 @@ class VitalLens:
         max_faces=fdet_max_faces, fs=fdet_fs, score_threshold=fdet_score_threshold,
         iou_threshold=fdet_iou_threshold)
     assert not (fdet_max_faces > 1 and mode == Mode.BURST), "burst mode only supported for one face"
+
   def __call__(
       self,
       video: Union[np.ndarray, str],
@@ -130,29 +128,12 @@ class VitalLens:
             },
             'vital_signs': {
               'heart_rate': {
-                'value': <Estimated value as float scalar>,
+                'value': <Estimated global value as float scalar>,
                 'unit': <Value unit>,
                 'confidence': <Estimation confidence as float scalar>,
                 'note': <Explanatory note>
               },
-              'respiratory_rate': {
-                'value': <Estimated value as float scalar>,
-                'unit': <Value unit>,
-                'confidence': <Estimation confidence as float scalar>,
-                'note': <Explanatory note>
-              },
-              'ppg_waveform': {
-                'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
-                'unit': <Data unit>,
-                'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
-                'note': <Explanatory note>
-              },
-              'respiratory_waveform': {
-                'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
-                'unit': <Data unit>,
-                'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
-                'note': <Explanatory note>
-              },
+              <other vitals...>
             },
             "message": <Message about estimates>
           },
@@ -169,8 +150,7 @@ class VitalLens:
       if video.shape[0] > (API_MAX_FRAMES - self.rppg.n_inputs + 1):
         raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES - self.rppg.n_inputs + 1}, but received {video.shape[0]}.")
     inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
-    # TODO: Optimize performance of simple rPPG methods for long videos
-    # Warning if using long video
+    # Warning if using long video with simple rPPG method
     target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
     if not isinstance(self.rppg, VitalLensRPPGMethod) and (inputs_shape[0] / fps * target_fps) > 3600:
       logging.warning("Inference for long videos has yet to be optimized for POS / G / CHROM. This may consume significant memory.")
@@ -191,6 +171,8 @@ class VitalLens:
       faces = np.transpose(faces, (1, 0, 2))
     # Check if the faces are valid
     faces = check_faces(faces, inputs_shape)
+    # Get video duration for rolling vital calculations
+    video_duration_s = inputs_shape[0] / fps
     # Run separately for each face
     results = []
     for face in faces:
@@ -216,44 +198,15 @@ class VitalLens:
       for name in self.rppg.signals:
         if name in data and name in unit and name in conf and name in note:
           face_result['vital_signs'][name] = {
-            ('data' if 'waveform' in name else 'value'): data[name],
+            ('data' if 'waveform' in name or 'rolling' in name else 'value'): data[name],
             'unit': unit[name],
             'confidence': conf[name],
             'note': note[name]
           }
       if self.estimate_rolling_vitals:
-        try:
-          if 'ppg_waveform' in self.rppg.signals:
-            rolling_hr = estimate_hr_from_signal(
-              signal=data['ppg_waveform'], f_s=fps, window_size=CALC_HR_MAX_T,
-              scope=EScope.ROLLING, method=EMethod.PERIODOGRAM
-            )
-            rolling_conf = rolling_calc(
-              x=conf['ppg_waveform'], calc_fn=lambda x: np.nanmean(x),
-              min_window_size=CALC_HR_MAX_T, max_window_size=CALC_HR_MAX_T,
-              overlap=CALC_HR_MAX_T // 2
-            )
-            face_result['vital_signs']['rolling_heart_rate'] = {
-              'data': rolling_hr, 'unit': 'bpm', 'confidence': rolling_conf,
-              'note': 'Estimate of the rolling heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
-            }
-          if 'respiratory_waveform' in self.rppg.signals:
-            rolling_rr = estimate_rr_from_signal(
-              signal=data['respiratory_waveform'], f_s=fps, window_size=CALC_RR_MAX_T,
-              scope=EScope.ROLLING, method=EMethod.PERIODOGRAM
-            )
-            rolling_conf = rolling_calc(
-              x=conf['respiratory_waveform'], calc_fn=lambda x: np.nanmean(x),
-              min_window_size=CALC_RR_MAX_T, max_window_size=CALC_RR_MAX_T,
-              overlap=CALC_RR_MAX_T // 2
-            )
-            face_result['vital_signs']['rolling_respiratory_rate'] = {
-              'data': rolling_rr, 'unit': 'bpm', 'confidence': rolling_conf,
-              'note': 'Estimate of the rolling respiratory rate using VitalLens, along with frame-wise confidences between 0 and 1.',
-            }
-          # TODO: Implement rolling HRV
-        except ValueError as e:
-          logging.debug(f"Issue while computing rolling vitals: {e}")
+        estimate_rolling_vitals(
+          vital_signs_dict=face_result['vital_signs'], data=data, conf=conf,
+          signals_available=self.rppg.signals, fps=fps, video_duration_s=video_duration_s)
       results.append(face_result)
     # Export to json
     if self.export_to_json:

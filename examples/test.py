@@ -16,6 +16,8 @@ from vitallens.utils import download_file
 COLOR_GT = '#000000'
 METHOD_COLORS = {
   Method.VITALLENS: '#00a4df',
+  Method.VITALLENS_1_0: '#00a4df',
+  Method.VITALLENS_2_0: '#00a4df',
   Method.G: '#00ff00',
   Method.CHROM: '#4ceaff',
   Method.POS: '#23b031'
@@ -58,6 +60,9 @@ def run(args=None):
   # Print the results
   print(result)
   # Plot the results
+  if not result:
+    print("No faces detected, cannot plot results.")
+    return
   vital_signs = result[0]['vital_signs']
   if "respiratory_waveform" in vital_signs:
     fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(12, 6))
@@ -73,11 +78,11 @@ def run(args=None):
   if "ppg_waveform" in vital_signs:
     hr_string = f" -> HR: {vital_signs['heart_rate']['value']:.1f} bpm ({vital_signs['heart_rate']['confidence']*100:.0f}% confidence)" if "heart_rate" in vital_signs else ""
     ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label=f"PPG Waveform Estimate{hr_string}")
-    ax1.plot(vital_signs['ppg_waveform']['confidence'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimation Confidence')
+    ax1.plot(vital_signs['ppg_waveform']['confidence'], color=METHOD_COLORS[args.method], label='PPG Waveform Estimation Confidence', linestyle='--')
   if "respiratory_waveform" in vital_signs:
     rr_string = f" -> RR: {vital_signs['respiratory_rate']['value']:.1f} bpm ({vital_signs['respiratory_rate']['confidence']*100:.0f}% confidence)" if "respiratory_rate" in vital_signs else ""
     ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label=f"Respiratory Waveform Estimate{rr_string}")
-    ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimation Confidence')
+    ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=METHOD_COLORS[args.method], label='Respiratory Waveform Estimation Confidence', linestyle='--')
   ax1.legend()
   if 'respiratory_waveform' in vital_signs: ax2.legend()
   plt.show()

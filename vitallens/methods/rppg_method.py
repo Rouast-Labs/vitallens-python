@@ -31,7 +31,6 @@ class RPPGMethod(metaclass=abc.ABCMeta):
     """Initialize the `RPPGMethod`
     
     Args:
-      method: The selected method
       mode: The operation mode
     """
     self.op_mode = mode
@@ -46,9 +45,6 @@ class RPPGMethod(metaclass=abc.ABCMeta):
     """
     self.roi_method = config['roi_method']
     self.fps_target = config['fps_target']
-    self.est_window_length = config['est_window_length']
-    self.est_window_overlap = config['est_window_overlap']
-    self.est_window_flexible = self.est_window_length == 0
   @abc.abstractmethod
   def __call__(self, frames, faces, fps, override_fps_target, override_global_parse):
     """Run inference. Abstract method to be implemented in subclasses."""

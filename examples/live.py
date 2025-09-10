@@ -97,6 +97,8 @@ def run(args):
   signals = None
   while True:
     ret, frame = cap.read()
+    if not ret:
+      break
     # Measure frequency
     t_prev = t
     t = time.time()

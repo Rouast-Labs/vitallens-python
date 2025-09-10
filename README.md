@@ -4,7 +4,7 @@
   </a>
   <h1>vitallens-python</h1>
   <p align="center">
-    <p>Estimate vital signs such as heart rate and respiratory rate from video in Python.</p>
+    <p>Estimate vital signs such as heart rate, HRV, and respiratory rate from video in Python.</p>
   </p>
 
 [![Tests](https://github.com/Rouast-Labs/vitallens-python/actions/workflows/main.yml/badge.svg)](https://github.com/Rouast-Labs/vitallens-python/actions/workflows/main.yml)
@@ -14,62 +14,73 @@
 
 </div>
 
-`vitallens` is a Python client for the [**VitalLens API**](https://www.rouast.com/api/), using the same inference engine as our [free iOS app VitalLens](https://apps.apple.com/us/app/vitallens/id6472757649).
-Furthermore, it includes fast implementations of several other heart rate estimation methods from video such as `G`, `CHROM`, and `POS`.
+`vitallens` is the official Python client for the [**VitalLens API**](https://www.rouast.com/api/), a service for estimating physiological vital signs like heart rate, respiratory rate, and heart rate variability (HRV) from facial video.
 
-- Accepts as input either a video filepath or an in-memory video as `np.ndarray`
-- Performs fast face detection if required - you can also pass existing detections
-- `vitallens.Method.VITALLENS` supports *heart rate*, *respiratory rate*, *pulse waveform*, and *respiratory waveform* estimation. In addition, it returns an estimation confidence for each vital. We are working to support more vital signs in the future.
-- `vitallens.Method.{G/CHROM/POS}` support faster, but less accurate *heart rate* and *pulse waveform* estimation.
-- While `VITALLENS` requires an API Key, `G`, `CHROM`, and `POS` do not. [Register on our website to get a free API Key.](https://www.rouast.com/api/)
-
-Estimate vitals in a few lines of code:
-
-```python
-from vitallens import VitalLens, Method
-
-vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
-result = vl("video.mp4")
-print(result)
-```
-
-Using a different language or platform? We also have a [JavaScript client](https://github.com/Rouast-Labs/vitallens.js).
-
-### Disclaimer
-
-`vitallens` provides vital sign estimates for general wellness purposes only. It is not intended for medical use. Always consult with your doctor for any health concerns or for medically precise measurement.
-
-See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api/terms) and our [Privacy Policy](https://www.rouast.com/privacy).
+The library provides:
+- A simple interface to the powerful **VitalLens API** for state-of-the-art vital sign estimation.
+- Implementations of classic rPPG algorithms (`POS`, `CHROM`, `G`) for local, API-free processing.
+- Support for video files and in-memory video as `np.ndarray`
+- Fast face detection if required - you can also pass existing detections
 
 ## Installation
 
-General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable. On Windows, [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/) must also be installed.
+You can install the library using pip:
 
-The easiest way to install the latest version of `vitallens` and its Python dependencies:
-
-```
+```bash
 pip install vitallens
 ```
 
-Alternatively, it can be done by cloning the source:
+Using a different language or platform? We also have a [JavaScript client](https://github.com/Rouast-Labs/vitallens.js) and [iOS app](https://apps.apple.com/us/app/vitallens/id6472757649).
 
-```
-git clone https://github.com/Rouast-Labs/vitallens-python.git
-pip install ./vitallens-python
+## Quickstart
+
+To get started, you'll need an API key for the `VITALLENS` methods. You can get a free key from the [rouast.com API page](https://www.rouast.com/api).
+
+Here's a quick example of how to analyze a video file and get vital signs:
+
+```python
+import vitallens
+
+# Your API key from https://www.rouast.com/api
+API_KEY = "YOUR_API_KEY"
+
+# Initialize the client.
+# Method.VITALLENS automatically selects the best available model for your plan.
+vl = vitallens.VitalLens(method=vitallens.Method.VITALLENS, api_key=API_KEY)
+
+# Analyze a video file
+# You can also pass a numpy array of shape (n_frames, height, width, 3)
+video_path = 'path/to/your/video.mp4'
+results = vl(video_path)
+
+# Print the results
+if results:
+  vital_signs = results[0]['vital_signs']
+  hr = vital_signs.get('heart_rate', {}).get('value')
+  rr = vital_signs.get('respiratory_rate', {}).get('value')
+  sdnn = vital_signs.get('hrv_sdnn', {}).get('value')
+  
+  print(f"Heart Rate: {hr:.1f} bpm")
+  print(f"Respiratory Rate: {rr:.1f} rpm")
+  if sdnn is not None: print(f"HRV (SDNN): {sdnn:.1f} ms")
 ```
 
-### Dealing with possible issues
+### Troubleshooting
+
+General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable. On Windows, [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/) must also be installed.
 
 On newer versions of Python you may face the issue that the dependency `onnxruntime` cannot be installed via pip. If you are using `conda`, you can try installing it via `conda install -c conda-forge onnxruntime`, and then run `pip install vitallens` again. Otherwise try using Python 3.9, 3.10, or 3.11.
 
 ## How to use
+
+### Configuring `vitallens.VitalLens`
 
 To start using `vitallens`, first create an instance of `vitallens.VitalLens`. 
 It can be configured using the following parameters:
 
 | Parameter               | Description                                                                        | Default            |
 |-------------------------|------------------------------------------------------------------------------------|--------------------|
-| method                  | Inference method. {`Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`} | `Method.VITALLENS` |
+| method                  | Inference method. {e.g., `Method.VITALLENS`, `Method.POS`}                         | `Method.VITALLENS` |
 | mode                    | Operation mode. {`Mode.BATCH` for indep. videos or `Mode.BURST` for video stream}  | `Mode.BATCH`       |
 | api_key                 | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
 | detect_faces            | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
@@ -78,6 +89,17 @@ It can be configured using the following parameters:
 | fdet_fs                 | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
 | export_to_json          | If `True`, write results to a json file.                                           | `True`             |
 | export_dir              | The directory to which json files are written.                                     | `.`                |
+
+### Methods
+
+You can choose from several rPPG methods:
+
+- `Method.VITALLENS`: The recommended method. Uses the VitalLens API and automatically selects the best model for your API key (e.g., VitalLens 2.0 with HRV support).
+- `Method.VITALLENS_2_0`: Forces the use of the VitalLens 2.0 model.
+- `Method.VITALLENS_1_0`: Forces the use of the VitalLens 1.0 model.
+- `Method.POS`, `Method.CHROM`, `Method.G`: Classic rPPG algorithms that run locally and do not require an API key.
+
+### Estimating vitals
 
 Once instantiated, `vitallens.VitalLens` can be called to estimate vitals.
 In `Mode.BATCH` calls are assumed to be working on independent videos, whereas in `Mode.BURST` we expect the subsequent calls to pass the next frames of the same video (stream) as `np.ndarray`.
@@ -91,16 +113,26 @@ Calls are configured using the following parameters:
 | override_fps_target | Target frequency for inference (optional - use methods's default otherwise).          | `None`  |
 | export_filename     | Filename for json export if applicable.                                               | `None`  |
 
+### Understanding the results
+
 `vitallens` returns estimates of the following vital signs if using `Mode.BATCH` with a minimum of 16 frames:
 
-| Name                       | Type                | Returned if                                                                                              |
-|----------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
-| `heart_rate`               | Global value        | Video at least 2 seconds long and using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`   |
-| `rolling_heart_rate`       | Continuous values   | Video more than 10 seconds long and using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G` and `estimate_rolling_vitals=True` |
-| `ppg_waveform`             | Continuous waveform | Using `Method.VITALLENS`, `Method.POS`, `Method.CHROM` or `Method.G`                                     |
-| `respiratory_rate`         | Global value        | Video at least 4 seconds long and using `Method.VITALLENS`                                               |
-| `rolling_respiratory_rate` | Continuous values   | Video more than 30 seconds long and using `Method.VITALLENS` and `estimate_rolling_vitals=True`          |
-| `respiratory_waveform`     | Continuous waveform | Using `Method.VITALLENS`                                                                                 |
+| Name                       | Type                | Returned if                                                                                |
+|----------------------------|---------------------|--------------------------------------------------------------------------------------------|
+| `ppg_waveform`             | Continuous waveform | Always                                                                                     |
+| `heart_rate`               | Global value        | Video at least 5 seconds long                                                              |
+| `rolling_heart_rate`       | Continuous values   | Video at least 10 seconds long                                                             |
+| `respiratory_waveform`     | Continuous waveform | Using `VITALLENS`, `VITALLENS_1_0`, or `VITALLENS_2_0`                                     |
+| `respiratory_rate`         | Global value        | Video at least 10 seconds long and using `VITALLENS`, `VITALLENS_1_0`, or `VITALLENS_2_0`  |
+| `rolling_respiratory_rate` | Continuous values   | Video at least 30 seconds long and using `VITALLENS`, `VITALLENS_1_0`, or `VITALLENS_2_0`  |
+| `hrv_sdnn`                 | Global value        | Video at least 20 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+| `hrv_rmssd`                | Global value        | Video at least 20 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+| `hrv_lfhf`                 | Global value        | Video at least 55 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+| `rolling_hrv_sdnn`         | Continuous values   | Video at least 60 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+| `rolling_hrv_rmssd`        | Continuous values   | Video at least 60 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+| `rolling_hrv_lfhf`         | Continuous values   | Video at least 60 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+
+Note that rolling metrics are only computed when `estimate_rolling_vitals=True`.
 
 The estimation results are returned as a `list`. It contains a `dict` for each distinct face, with the following structure:
 
@@ -119,36 +151,7 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
         'confidence': <Estimation confidence as float scalar>,
         'note': <Explanatory note>
       },
-      'respiratory_rate': {
-        'value': <Estimated global value as float scalar>,
-        'unit': <Value unit>,
-        'confidence': <Estimation confidence as float scalar>,
-        'note': <Explanatory note>
-      },
-      'ppg_waveform': {
-        'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
-        'unit': <Data unit>,
-        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
-        'note': <Explanatory note>
-      },
-      'respiratory_waveform': {
-        'data': <Estimated waveform value for each frame as np.ndarray of shape (n_frames,)>,
-        'unit': <Data unit>,
-        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
-        'note': <Explanatory note>
-      },
-      'rolling_heart_rate': {
-        'data': <Estimated value for each frame as np.ndarray of shape (n_frames,)>,
-        'unit': <Value unit>,
-        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
-        'note': <Explanatory note>
-      },
-      'rolling_respiratory_rate': {
-        'data': <Estimated value for each frame as np.ndarray of shape (n_frames,)>,
-        'unit': <Value unit>,
-        'confidence': <Estimation confidence for each frame as np.ndarray of shape (n_frames,)>,
-        'note': <Explanatory note>
-      }
+      <other vitals...>
     },
     "message": <Message about estimates>
   },
@@ -287,3 +290,9 @@ To build:
 ```
 python -m build
 ```
+
+## Disclaimer
+
+`vitallens` provides vital sign estimates for general wellness purposes only. It is not intended for medical use. Always consult with your doctor for any health concerns or for medically precise measurement.
+
+See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api/terms) and our [Privacy Policy](https://www.rouast.com/privacy).

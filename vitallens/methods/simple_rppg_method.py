@@ -41,7 +41,6 @@ class SimpleRPPGMethod(RPPGMethod):
     """Initialize the `SimpleRPPGMethod`
     
     Args:
-      config: The configuration dict
       mode: The operation mode
     """
     super(SimpleRPPGMethod, self).__init__(mode=mode)
@@ -57,6 +56,9 @@ class SimpleRPPGMethod(RPPGMethod):
     """
     super(SimpleRPPGMethod, self).parse_config(config=config)
     self.signals = config['signals']
+    self.est_window_length = config['est_window_length']
+    self.est_window_overlap = config['est_window_overlap']
+    self.est_window_flexible = self.est_window_length == 0
     if self.op_mode == Mode.BURST:
       self.buffer = SignalBuffer(size=self.est_window_length, ndim=2)
   @abc.abstractmethod
@@ -93,11 +95,11 @@ class SimpleRPPGMethod(RPPGMethod):
       override_global_parse: Has no effect here.
     Returns:
       Tuple of
-       - data: A dictionary with the values of the estimated vital signs.
-       - unit: A dictionary with the units of the estimated vital signs.
-       - conf: A dictionary with the confidences of the estimated vital signs.
-       - note: A dictionary with notes on the estimated vital signs.
-       - live: Dummy live confidence estimation (set to always 1). Shape (n_frames,)
+        - data: A dictionary with the values of the estimated vital signs.
+        - unit: A dictionary with the units of the estimated vital signs.
+        - conf: A dictionary with the confidences of the estimated vital signs.
+        - note: A dictionary with notes on the estimated vital signs.
+        - live: Dummy live confidence estimation (set to always 1). Shape (n_frames,)
     """
     # Compute temporal union of ROIs
     u_roi = merge_faces(faces)
