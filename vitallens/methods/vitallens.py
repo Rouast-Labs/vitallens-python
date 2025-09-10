@@ -111,13 +111,10 @@ class VitalLensRPPGMethod(RPPGMethod):
       self.input_buffer = None
   def parse_config(self, config: dict):
     """Set properties based on the config."""
-    # TODO check if we can make it so we reuse some code from the parent class
+    super(VitalLensRPPGMethod, self).parse_config(config=config)
     self.n_inputs = int(config['n_inputs'])
     self.input_size = int(config['input_size'])
-    self.fps_target = int(config['fps_target'])
-    self.roi_method = config['roi_method']
     self.signals = config.get('signals', set())
-    # Not used by this method, but required by base class
     self.est_window_length = 0
     self.est_window_overlap = 0
   def __call__(
@@ -312,12 +309,8 @@ class VitalLensRPPGMethod(RPPGMethod):
         raise VitalLensAPIKeyError()
       elif response.status_code == 429:
         raise VitalLensAPIQuotaExceededError()
-      elif response.status_code == 400:
-        raise VitalLensAPIError(f"Parameters missing: {response_body['message']}")
-      elif response.status_code == 422:
-        raise VitalLensAPIError(f"Issue with provided parameters: {response_body['message']}")
-      elif response.status_code == 500:
-        raise VitalLensAPIError(f"Error occurred in the API: {response_body['message']}")
+      elif response.status_code in [400, 422, 500]:
+        raise VitalLensAPIError(f"API Error: {response_body['message']}")
       else:
         raise Exception(f"Error {response.status_code}: {response_body['message']}")
     # Parse response

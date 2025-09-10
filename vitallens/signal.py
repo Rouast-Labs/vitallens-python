@@ -18,12 +18,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
 import numpy as np
 from prpy.numpy.physio import EScope, EMethod, HRVMetric
 from prpy.numpy.physio import estimate_hr_from_signal, estimate_rr_from_signal
 from prpy.numpy.physio import estimate_hrv_from_signal
 from prpy.numpy.physio import CALC_HR_MIN_T, CALC_HRV_SDNN_MIN_T, CALC_RR_MIN_T
 from prpy.numpy.physio import CALC_HRV_RMSSD_MIN_T, CALC_HRV_LFHF_MIN_T
+from prpy.numpy.physio import CALC_HR_MAX_T, CALC_RR_MAX_T
+from prpy.numpy.physio import CALC_HRV_SDNN_MAX_T, CALC_HRV_RMSSD_MAX_T, CALC_HRV_LFHF_MAX_T
+from prpy.numpy.rolling import rolling_calc
 from typing import Tuple
 
 from vitallens.enums import Method
@@ -194,3 +198,62 @@ def assemble_results(
         out_note[name] = f'Estimate of the global heart rate variability (LF/HF) using {method.name}. Too few values available to estimate.'  
       out_unit[name] = 'unitless'
   return out_data, out_unit, out_conf, out_note, live
+
+def estimate_rolling_vitals(
+    vital_signs_dict: dict,
+    data: dict,
+    conf: dict,
+    signals_available: set,
+    fps: float,
+    video_duration_s: float
+  ):
+  """Helper to calculate and append rolling vitals to the results dictionary."""
+  try:
+    if 'ppg_waveform' in signals_available and video_duration_s > CALC_HR_MAX_T:
+      rolling_hr = estimate_hr_from_signal(
+        signal=data['ppg_waveform'], f_s=fps, window_size=CALC_HR_MAX_T,
+        scope=EScope.ROLLING, method=EMethod.PERIODOGRAM
+      )
+      rolling_conf_hr = rolling_calc(
+        x=conf['ppg_waveform'], calc_fn=lambda x: np.nanmean(x),
+        min_window_size=CALC_HR_MAX_T, max_window_size=CALC_HR_MAX_T,
+        overlap=CALC_HR_MAX_T // 2
+      )
+      vital_signs_dict['rolling_heart_rate'] = {
+        'data': rolling_hr, 'unit': 'bpm', 'confidence': rolling_conf_hr,
+        'note': 'Estimate of the rolling heart rate using VitalLens, along with frame-wise confidences between 0 and 1.',
+      }
+      hrv_signals = {'hrv_sdnn': (CALC_HRV_SDNN_MAX_T, HRVMetric.SDNN),
+                     'hrv_rmssd': (CALC_HRV_RMSSD_MAX_T, HRVMetric.RMSSD),
+                     'hrv_lfhf': (CALC_HRV_LFHF_MAX_T, HRVMetric.LFHF)}
+      for hrv_name, (max_t, metric) in hrv_signals.items():
+        if hrv_name in signals_available and video_duration_s > max_t:
+          rolling_hrv, rolling_hrv_conf = estimate_hrv_from_signal(
+            signal=data['ppg_waveform'], f_s=fps, metric=metric,
+            confidence=conf['ppg_waveform'], confidence_threshold=0.,
+            min_window_size=max_t, max_window_size=max_t,
+            height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
+            scope=EScope.ROLLING, interp_skipped=True, min_dets=10, min_t=max_t
+          )
+          vital_signs_dict[f'rolling_{hrv_name}'] = {
+            'data': rolling_hrv,
+            'unit': 'ms' if metric != HRVMetric.LFHF else 'unitless',
+            'confidence': rolling_hrv_conf,
+            'note': f'Estimate of the rolling {hrv_name} using VitalLens, along with frame-wise confidences between 0 and 1.',
+          }
+    if 'respiratory_waveform' in signals_available and video_duration_s > CALC_RR_MAX_T:
+      rolling_rr = estimate_rr_from_signal(
+        signal=data['respiratory_waveform'], f_s=fps, window_size=CALC_RR_MAX_T,
+        scope=EScope.ROLLING, method=EMethod.PERIODOGRAM
+      )
+      rolling_conf_rr = rolling_calc(
+        x=conf['respiratory_waveform'], calc_fn=lambda x: np.nanmean(x),
+        min_window_size=CALC_RR_MAX_T, max_window_size=CALC_RR_MAX_T,
+        overlap=CALC_RR_MAX_T // 2
+      )
+      vital_signs_dict['rolling_respiratory_rate'] = {
+        'data': rolling_rr, 'unit': 'bpm', 'confidence': rolling_conf_rr,
+        'note': 'Estimate of the rolling respiratory rate, along with frame-wise confidences between 0 and 1.',
+      }
+  except ValueError as e:
+    logging.debug(f"Issue while computing rolling vitals: {e}")
