@@ -22,6 +22,8 @@ The library provides:
 - Support for video files and in-memory video as `np.ndarray`
 - Fast face detection if required - you can also pass existing detections
 
+Using a different language or platform? We also have a [JavaScript client](https://github.com/Rouast-Labs/vitallens.js) and [iOS app](https://apps.apple.com/us/app/vitallens/id6472757649).
+
 ## Installation
 
 You can install the library using pip:
@@ -29,8 +31,6 @@ You can install the library using pip:
 ```bash
 pip install vitallens
 ```
-
-Using a different language or platform? We also have a [JavaScript client](https://github.com/Rouast-Labs/vitallens.js) and [iOS app](https://apps.apple.com/us/app/vitallens/id6472757649).
 
 ## Quickstart
 
@@ -201,6 +201,12 @@ This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) data
 
 ### Use VitalLens API to estimate vitals from a video file
 
+First, we create an instance of `vitallens.VitalLens` named `vl` while choosing `vitallens.Method.VITALLENS` as estimation method and providing the API Key.
+
+Then, we can call `vl` to estimate vitals.
+In this case, we are estimating vitals from a video located at `video.mp4`.
+The `result` contains the estimation results.
+
 ```python
 from vitallens import VitalLens, Method
 
@@ -208,14 +214,22 @@ vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
 result = vl("video.mp4")
 ```
 
-### Use POS method on an `np.ndarray` of video frames
+### Use VitalLens API on an `np.ndarray` of video frames
+
+First, we create an instance of `vitallens.VitalLens` named `vl` while choosing `vitallens.Method.VITALLENS` as estimation method and providing the API Key.
+
+Then, we can call `vl` to estimate vitals.
+In this case, we are passing a `np.ndarray` `my_video_arr` of shape `(n, h, w, c)` and with `dtype` `np.uint8` containing video data.
+We also have to pass the frame rate `my_video_fps` of the video.
+
+The `result` contains the estimation results.
 
 ```python
 from vitallens import VitalLens, Method
 
 my_video_arr = ...
 my_video_fps = 30
-vl = VitalLens(method=Method.POS)
+vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
 result = vl(my_video_arr, fps=my_video_fps)
 ```
 
@@ -273,6 +287,14 @@ Please note that the example script plots won't work when running them through D
 docker cp <container_id>:/app/results.png .
 ```
 
+## Build
+
+To build:
+
+```
+python -m build
+```
+
 ## Linting and tests
 
 Before running tests, please make sure that you have an environment variable `VITALLENS_DEV_API_KEY` set to a valid API Key. 
@@ -283,16 +305,12 @@ flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 pytest
 ```
 
-## Build
-
-To build:
-
-```
-python -m build
-```
-
 ## Disclaimer
 
 `vitallens` provides vital sign estimates for general wellness purposes only. It is not intended for medical use. Always consult with your doctor for any health concerns or for medically precise measurement.
 
 See also our [Terms of Service for the VitalLens API](https://www.rouast.com/api/terms) and our [Privacy Policy](https://www.rouast.com/privacy).
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
