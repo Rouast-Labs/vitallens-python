@@ -74,7 +74,8 @@ def assemble_results(
     min_t_rr: float = CALC_RR_MIN_T,
     min_t_hrv_sdnn: float = CALC_HRV_SDNN_MIN_T,
     min_t_hrv_rmssd: float = CALC_HRV_RMSSD_MIN_T,
-    min_t_hrv_lfhf: float = CALC_HRV_LFHF_MIN_T
+    min_t_hrv_lfhf: float = CALC_HRV_LFHF_MIN_T,
+    hrv_conf_threshold: float = 0.5
   ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
   """Assemble rPPG method results in the format expected by the API.
   Args:
@@ -88,6 +89,10 @@ def assemble_results(
     can_provide_confidence: Whether the method can provide a confidence estimate
     min_t_hr: Minimum amount of time signal to estimate hr
     min_t_rr: Minimum amount of time signal to estimate rr
+    min_t_hrv_sdnn: Minimum amount of time signal to estimate hrv_sdnn
+    min_t_hrv_rmssd: Minimum amount of time signal to estimate hrv_rmssd
+    min_t_hrv_lfhf: Minimum amount of time signal to estimate hrv_lfhf
+    hrv_conf_threshold: Peak detection confidence threshold for hrv estimation
   Returns:
     Tuple of
        - out_data: The estimated data/value for each signal.
@@ -148,7 +153,7 @@ def assemble_results(
         ppg_idx = train_sig_names.index('ppg_waveform')
         hrv, hrv_conf = estimate_hrv_from_signal(
           signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.SDNN,
-          confidence=conf[ppg_idx], confidence_threshold=0.,
+          confidence=conf[ppg_idx], confidence_threshold=hrv_conf_threshold,
           min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
           height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
           scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_sdnn
@@ -166,7 +171,7 @@ def assemble_results(
         ppg_idx = train_sig_names.index('ppg_waveform')
         hrv, hrv_conf = estimate_hrv_from_signal(
           signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.RMSSD,
-          confidence=conf[ppg_idx], confidence_threshold=0.,
+          confidence=conf[ppg_idx], confidence_threshold=hrv_conf_threshold,
           min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
           height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
           scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_rmssd
@@ -184,7 +189,7 @@ def assemble_results(
         ppg_idx = train_sig_names.index('ppg_waveform')
         hrv, hrv_conf = estimate_hrv_from_signal(
           signal=sig[ppg_idx], f_s=fps, metric=HRVMetric.LFHF,
-          confidence=conf[ppg_idx], confidence_threshold=0.,
+          confidence=conf[ppg_idx], confidence_threshold=hrv_conf_threshold,
           min_window_size=int(fps*4), max_window_size=int(fps*8), overlap=int(fps*4),
           height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
           scope=EScope.GLOBAL, interp_skipped=True, min_dets=10, min_t=min_t_hrv_lfhf
