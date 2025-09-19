@@ -141,6 +141,7 @@ def assemble_results(
                                      method=EMethod.PERIODOGRAM)
         conf_rr = float(np.mean(conf[resp_idx]))
         return rr, conf_rr
+      _process_vital(name, 'bpm', 'respiratory rate', min_t_rr, estimate_fn)
     elif name == 'ppg_waveform':
       ppg_idx = train_sig_names.index('ppg_waveform')
       out_data[name] = sig[ppg_idx]
