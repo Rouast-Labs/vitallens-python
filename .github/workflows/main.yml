@@ -15,7 +15,7 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - name: Checkout vitallens-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up Python ${{ matrix.python-version }}
@@ -61,7 +61,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout vitallens-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up Python 3.10
