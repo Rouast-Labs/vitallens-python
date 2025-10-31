@@ -70,7 +70,7 @@ class VitalLens:
       export_dir: The directory to which json files are written.
     """
     self.mode = mode
-    if method in [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_2_0]:
+    if method in [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_1_1, Method.VITALLENS_2_0]:
       self.rppg = VitalLensRPPGMethod(mode=mode, api_key=api_key, requested_model=method)
     elif method == Method.G:
       self.rppg = GRPPGMethod(mode=mode)

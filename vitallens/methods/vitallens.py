@@ -43,7 +43,7 @@ from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows, assemble_results
 from vitallens.utils import check_faces_in_roi
 
-VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_2_0]
+VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_1_1, Method.VITALLENS_2_0]
 
 def _resolve_model_config(
     api_key: str,
