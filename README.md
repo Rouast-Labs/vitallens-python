@@ -97,6 +97,7 @@ You can choose from several rPPG methods:
 - `Method.VITALLENS`: The recommended method. Uses the VitalLens API and automatically selects the best model for your API key (e.g., VitalLens 2.0 with HRV support).
 - `Method.VITALLENS_2_0`: Forces the use of the VitalLens 2.0 model.
 - `Method.VITALLENS_1_0`: Forces the use of the VitalLens 1.0 model.
+- `Method.VITALLENS_1_1`: Forces the use of the VitalLens 1.1 model.
 - `Method.POS`, `Method.CHROM`, `Method.G`: Classic rPPG algorithms that run locally and do not require an API key.
 
 ### Estimating vitals
@@ -122,9 +123,9 @@ Calls are configured using the following parameters:
 | `ppg_waveform`             | Continuous waveform | Always                                                                                     |
 | `heart_rate`               | Global value        | Video at least 5 seconds long                                                              |
 | `rolling_heart_rate`       | Continuous values   | Video at least 10 seconds long                                                             |
-| `respiratory_waveform`     | Continuous waveform | Using `VITALLENS`, `VITALLENS_1_0`, or `VITALLENS_2_0`                                     |
-| `respiratory_rate`         | Global value        | Video at least 10 seconds long and using `VITALLENS`, `VITALLENS_1_0`, or `VITALLENS_2_0`  |
-| `rolling_respiratory_rate` | Continuous values   | Video at least 30 seconds long and using `VITALLENS`, `VITALLENS_1_0`, or `VITALLENS_2_0`  |
+| `respiratory_waveform`     | Continuous waveform | Using `VITALLENS`, `VITALLENS_1_0`, `VITALLENS_1_1`, or `VITALLENS_2_0`                    |
+| `respiratory_rate`         | Global value        | Video at least 10 seconds long and using `VITALLENS`, `VITALLENS_1_0`, `VITALLENS_1_1`, or `VITALLENS_2_0`  |
+| `rolling_respiratory_rate` | Continuous values   | Video at least 30 seconds long and using `VITALLENS`, `VITALLENS_1_0`, `VITALLENS_1_1`, or `VITALLENS_2_0`  |
 | `hrv_sdnn`                 | Global value        | Video at least 20 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
 | `hrv_rmssd`                | Global value        | Video at least 20 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
 | `hrv_lfhf`                 | Global value        | Video at least 55 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |

@@ -17,6 +17,7 @@ COLOR_GT = '#000000'
 METHOD_COLORS = {
   Method.VITALLENS: '#00a4df',
   Method.VITALLENS_1_0: '#00a4df',
+  Method.VITALLENS_1_1: '#00a4df',
   Method.VITALLENS_2_0: '#00a4df',
   Method.G: '#00ff00',
   Method.CHROM: '#4ceaff',
