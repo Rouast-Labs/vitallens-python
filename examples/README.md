@@ -21,7 +21,7 @@ In this folder, you can find two sample videos to test `vitallens` on.
 Each video has ground truth labels recorded with gold-standard medical equipment.
 
 - `sample_video_1.mp4` which has ground truth labels for PPG Waveform (`ppg`), ECG Waveform (`ecg`), Respiratory Waveform (`resp`), Blood Pressure (`sbp` and `dbp`), Blood Oxygen (`spo2`), Heart Rate (`hr_ecg` - derived from ECG and `hr_ppg` - derived from PPG), Heart Rate Variability (`hrv_sdnn_ecg`), and Respiratory Rate (`rr`).
-- `sample_video_2.mp4` which has ground truth labels for PPG Waveform (`ppg`). This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
+- `sample_video_2.mp4` which has ground truth labels for PPG Waveform (`ppg`). This sample with id `3cf596e2bcc34862abc89bd2eca4a985` is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
 
 There is a test script in `test.py` which uses `Mode.BATCH` to run vitals estimation and plot the predictions against the ground truth labels. This uses `vitallens.Mode.BATCH` mode.
 Some options are available:
