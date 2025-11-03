@@ -36,7 +36,7 @@ def test_probe_video_inputs(request, file):
     test_video_ndarray = request.getfixturevalue('test_video_ndarray')
     test_video_fps = request.getfixturevalue('test_video_fps')
     video_shape, fps, i = probe_image_inputs(test_video_ndarray, fps=test_video_fps)
-  assert video_shape == (360, 480, 768, 3)
+  assert video_shape == (630, 480, 768, 3)
   assert fps == 30
   assert i == False
 
@@ -88,14 +88,14 @@ def test_parse_video_inputs(request, file, roi, target_size, target_fps):
     parsed, fps_in, video_shape_in, ds_factor, idxs = parse_image_inputs(
       inputs=test_video_ndarray, fps=test_video_fps, roi=roi, target_size=target_size,
       target_fps=target_fps)
-  assert parsed.shape == (360 if target_fps is None else 360 // 2,
+  assert parsed.shape == (630 if target_fps is None else 630 // 2,
                           200 if target_size is not None else (350 if roi is not None else 480),
                           200 if target_size is not None else (300 if roi is not None else 768),
                           3)
   assert fps_in == 30
-  assert video_shape_in == (360, 480, 768, 3)
+  assert video_shape_in == (630, 480, 768, 3)
   assert ds_factor == 1 if target_fps is None else 2
-  assert idxs == list(range(360)) if target_fps is None else list(range(0, 360, 2))
+  assert idxs == list(range(630)) if target_fps is None else list(range(0, 630, 2))
 
 def test_parse_video_inputs_no_file():
   with pytest.raises(Exception):
