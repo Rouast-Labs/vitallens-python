@@ -67,7 +67,7 @@ class SignalBuffer:
     Returns:
       out: The signal of buffer size, with overlaps averaged. Shape (self.size, dim1, dim2, ...)
     """
-    if isinstance(signal, list): signal = np.asarray(signal)
+    if not isinstance(signal, np.ndarray): signal = np.asarray(signal)
     if signal.size == 1 and self.ndim == 1: signal = np.full((dt,), fill_value=signal)
     assert isinstance(signal, np.ndarray), f"signal should be np.ndarray but is {type(signal)}"
     assert len(signal.shape) == self.ndim
