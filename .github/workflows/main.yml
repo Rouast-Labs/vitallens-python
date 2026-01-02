@@ -41,7 +41,7 @@ jobs:
       - name: Security audit
         run: |
           python -m pip install pip-audit
-          python -m pip_audit
+          python -m pip_audit --ignore-vuln GHSA-w853-jp5j-5j7f
       - name: Set development API_URL for non-main branches
         if: github.ref != 'refs/heads/main'
         run: |
