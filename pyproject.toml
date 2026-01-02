@@ -23,9 +23,9 @@ classifiers = [
 ]
 dependencies = [
     "importlib_resources>=5.12",
-    "numpy>=1.24,<2.0",
+    "numpy>=1.24",
     "onnxruntime>=1.15.0",
-    "prpy[ffmpeg,numpy_min]>=0.3.8",
+    "prpy[ffmpeg,numpy_min]>=0.3.10",
     "python-dotenv>=1.0",
     "pyyaml>=6.0.1",
     "requests>=2.32.0",
