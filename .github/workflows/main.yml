@@ -43,7 +43,6 @@ jobs:
           python -m pip install pip-audit
           python -m pip_audit --ignore-vuln GHSA-w853-jp5j-5j7f
       - name: Set development API_URL for non-main branches
-        if: github.ref != 'refs/heads/main'
         run: |
           echo "API_URL=https://api-dev.rouast.com/vitallens-dev/file" >> $GITHUB_ENV
           echo "API_RESOLVE_URL=https://api-dev.rouast.com/vitallens-dev/resolve-model" >> $GITHUB_ENV
@@ -90,7 +89,6 @@ jobs:
           python -m pip install pip-audit
           python -m pip_audit
       - name: Set development API_URL for non-main branches
-        if: github.ref != 'refs/heads/main'
         run: |
           echo "API_URL=https://api-dev.rouast.com/vitallens-dev/file" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "API_RESOLVE_URL=https://api-dev.rouast.com/vitallens-dev/resolve-model" | Out-File -FilePath $env:GITHUB_ENV -Append
