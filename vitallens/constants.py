@@ -35,8 +35,8 @@ if 'API_RESOLVE_URL' in os.environ:
 
 # For local development against dev endpoints, create a `.env` file in the root
 # of the project and set the variables, for example:
-# API_URL="https://api.rouast.com/vitallens-dev/file"
-# API_RESOLVE_URL="https://api.rouast.com/vitallens-dev/resolve-model"
+# API_URL="https://api-dev.rouast.com/vitallens-dev/file"
+# API_RESOLVE_URL="https://api-dev.rouast.com/vitallens-dev/resolve-model"
 
 VITAL_CODES_TO_NAMES = {
   'ppg': 'ppg_waveform',

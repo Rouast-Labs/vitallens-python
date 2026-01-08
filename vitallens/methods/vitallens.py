@@ -34,6 +34,7 @@ from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
 import requests
+import os
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP, API_RESOLVE_URL, VITAL_CODES_TO_NAMES
@@ -303,7 +304,8 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Prepare API header and payload
     # -- by not sending fps information, ask endpoint not to do any processing
     headers = {"x-api-key": self.api_key}
-    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": "vitallens-python"}
+    origin = os.getenv('VITALLENS_API_ORIGIN', 'vitallens-python')
+    payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": origin}
     if self.requested_model_name:
       payload['model'] = self.requested_model_name
     if self.op_mode == Mode.BURST and self.state is not None:
