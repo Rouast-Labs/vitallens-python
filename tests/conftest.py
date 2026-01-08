@@ -36,6 +36,10 @@ TEST_VIDEO_PATH = "examples/sample_video_2.mp4"
 # Download the test video before running any tests
 download_file(TEST_VIDEO_URL, TEST_VIDEO_PATH)
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+  os.environ.setdefault("VITALLENS_API_ORIGIN", "test")
+
 @pytest.fixture(scope='session')
 def test_video_path():
   return TEST_VIDEO_PATH
