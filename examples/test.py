@@ -16,13 +16,16 @@ from vitallens.utils import download_file
 COLOR_GT = '#000000'
 METHOD_COLORS = {
   Method.VITALLENS: '#00a4df',
-  Method.VITALLENS_1_0: '#00a4df',
-  Method.VITALLENS_1_1: '#00a4df',
-  Method.VITALLENS_2_0: '#00a4df',
   Method.G: '#00ff00',
   Method.CHROM: '#4ceaff',
   Method.POS: '#23b031'
 }
+
+def get_method_color(method):
+  if isinstance(method, Method) and method in METHOD_COLORS:
+    return METHOD_COLORS[method]
+  return '#00a4df'
+
 SAMPLE_VIDEO_URLS = {
   'examples/sample_video_1.mp4': 'https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_video_1.mp4',
   'examples/sample_video_2.mp4': 'https://github.com/Rouast-Labs/vitallens-python/raw/main/examples/sample_video_2.mp4',
@@ -50,9 +53,12 @@ def run(args=None):
   else:
     print(f"Reading full video into memory from {args.video_path}...")
     video, _ = read_video_from_path(path=args.video_path, pix_fmt='rgb24')
-    print(f"Video shape: {video.shape}")
+    print(f"Video shape: {video.shape}")  
+  proxies = None
+  if args.proxy:
+    proxies = {"https": args.proxy, "http": args.proxy}
   # Estimate vitals and measure inference time
-  vl = VitalLens(method=args.method, api_key=args.api_key)
+  vl = VitalLens(method=args.method, api_key=args.api_key, proxies=proxies)
   start = timeit.default_timer()
   result = vl(video=video, fps=fps)
   stop = timeit.default_timer()
@@ -69,14 +75,16 @@ def run(args=None):
     fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(15, 8))
   else:
     fig, ax1 = plt.subplots(1, figsize=(15, 6))
-  fig.suptitle(f"Vital signs from {args.video_path} using {args.method.name} ({time_ms:.2f} ms)")
+  method_name = args.method.name if hasattr(args.method, 'name') else str(args.method)
+  method_color = get_method_color(args.method)
+  fig.suptitle(f"Vital signs from {args.video_path} using {method_name} ({time_ms:.2f} ms)")
   # PPG Waveform and Heart Rate Plot (ax1)
-  ax1.set_ylabel('Waveform (unitless)', color=METHOD_COLORS[args.method])
-  ax1.tick_params(axis='y', labelcolor=METHOD_COLORS[args.method])
+  ax1.set_ylabel('Waveform (unitless)', color=method_color)
+  ax1.tick_params(axis='y', labelcolor=method_color)
   if "ppg_waveform" in vital_signs:
     hr_string = f" -> Global HR: {vital_signs['heart_rate']['value']:.1f} bpm" if "heart_rate" in vital_signs else ""
-    ax1.plot(vital_signs['ppg_waveform']['data'], color=METHOD_COLORS[args.method], label=f"PPG Waveform{hr_string}", zorder=10)
-    ax1.plot(vital_signs['ppg_waveform']['confidence'], color=METHOD_COLORS[args.method], linestyle='--', label='PPG Confidence', zorder=5)
+    ax1.plot(vital_signs['ppg_waveform']['data'], color=method_color, label=f"PPG Waveform{hr_string}", zorder=10)
+    ax1.plot(vital_signs['ppg_waveform']['confidence'], color=method_color, linestyle='--', label='PPG Confidence', zorder=5)
   if ppg_gt is not None:
     hr_gt = estimate_hr_from_signal(signal=ppg_gt, f_s=fps, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
     ax1.plot(ppg_gt, color=COLOR_GT, label=f"Ground Truth PPG -> HR: {hr_gt:.1f} bpm", zorder=0)
@@ -96,11 +104,11 @@ def run(args=None):
   # Respiratory Waveform and Rate Plot (ax2)
   if "respiratory_waveform" in vital_signs:
     ax2.set_xlabel('Frame Index')
-    ax2.set_ylabel('Waveform (unitless)', color=METHOD_COLORS[args.method])
-    ax2.tick_params(axis='y', labelcolor=METHOD_COLORS[args.method])
+    ax2.set_ylabel('Waveform (unitless)', color=method_color)
+    ax2.tick_params(axis='y', labelcolor=method_color)
     rr_string = f" -> Global RR: {vital_signs['respiratory_rate']['value']:.1f} bpm" if "respiratory_rate" in vital_signs else ""
-    ax2.plot(vital_signs['respiratory_waveform']['data'], color=METHOD_COLORS[args.method], label=f"Respiratory Waveform{rr_string}", zorder=10)
-    ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=METHOD_COLORS[args.method], linestyle='--', label='Respiratory Confidence', zorder=5)
+    ax2.plot(vital_signs['respiratory_waveform']['data'], color=method_color, label=f"Respiratory Waveform{rr_string}", zorder=10)
+    ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=method_color, linestyle='--', label='Respiratory Confidence', zorder=5)
     if resp_gt is not None:
       rr_gt = estimate_rr_from_signal(signal=resp_gt, f_s=fps, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
       ax2.plot(resp_gt, color=COLOR_GT, label=f"Ground Truth Respiration -> RR: {rr_gt:.1f} bpm", zorder=0)
@@ -125,14 +133,18 @@ def method_type(name):
   try:
     return Method[name]
   except KeyError:
-    raise argparse.ArgumentTypeError(f"{name} is not a valid Method")
+    pass
+  if name.lower().startswith("vitallens"):
+    return name
+  raise argparse.ArgumentTypeError(f"{name} is not a valid Method")
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--api_key', type=str, default='', help='Your API key. Get one for free at https://www.rouast.com/api.')
+  parser.add_argument('--api_key', type=str, default=None, help='Your API key (Optional if using proxy auth).')
   parser.add_argument('--vitals_path', type=str, default=None, help='Path to ground truth vitals')
   parser.add_argument('--video_path', type=str, default='examples/sample_video_1.mp4', help='Path to video')
-  parser.add_argument('--method', type=method_type, default='VITALLENS', help='Choice of method')
+  parser.add_argument('--method', type=method_type, default='vitallens', help='Choice of method')
   parser.add_argument('--input_str', type=str2bool, default=True, help='If true, pass filepath to VitalLens, otherwise read video into memory first')
+  parser.add_argument('--proxy', type=str, default=None, help='Proxy URL (e.g., http://user:pass@10.10.1.10:3128)')
   args = parser.parse_args()
   run(args)

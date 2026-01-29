@@ -59,12 +59,13 @@ def draw_vital(frame, sig, text, sig_name, fps, color, draw_area_bl_x, draw_area
       fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=color, thickness=2)
 
 class VitalLensRunnable:
-  def __init__(self, method, api_key):
+  def __init__(self, method, api_key, proxies=None):
     self.active = threading.Event()
     self.result = []
     self.vl = VitalLens(method=method,
                         mode=Mode.BURST,
                         api_key=api_key,
+                        proxies=proxies,
                         detect_faces=True,
                         estimate_rolling_vitals=True,
                         export_to_json=False)
@@ -75,8 +76,11 @@ class VitalLensRunnable:
 
 def run(args):
   cap = cv2.VideoCapture(0)
-  executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-  vl = VitalLensRunnable(method=args.method, api_key=args.api_key)
+  executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)  
+  proxies = None
+  if args.proxy:
+    proxies = {"https": args.proxy, "http": args.proxy}
+  vl = VitalLensRunnable(method=args.method, api_key=args.api_key, proxies=proxies)
   signal_buffer = MultiSignalBuffer(size=240, ndim=1, ignore_k=['face'])
   fps_buffer = SignalBuffer(size=240, ndim=1, pad_val=np.nan)
   frame_buffer = []
@@ -134,7 +138,9 @@ def run(args):
         roi = None
         signal_buffer.clear()
       # Start next prediction
-      if len(frame_buffer) >= (API_MIN_FRAMES if args.method == Method.VITALLENS else 1):
+      is_api_method = isinstance(args.method, str) and args.method.startswith("vitallens")
+      is_api_method = is_api_method or (isinstance(args.method, Method) and args.method == Method.VITALLENS)
+      if len(frame_buffer) >= (API_MIN_FRAMES if is_api_method else 1):
         n_frames = len(frame_buffer)
         executor.submit(vl, frame_buffer.copy(), fps)
         frame_buffer.clear()
@@ -171,11 +177,15 @@ def method_type(name):
   try:
     return Method[name]
   except KeyError:
-    raise argparse.ArgumentTypeError(f"{name} is not a valid Method")
+    pass
+  if name.lower().startswith("vitallens"):
+    return name
+  raise argparse.ArgumentTypeError(f"{name} is not a valid Method")
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--api_key', type=str, default='', help='Your API key. Get one for free at https://www.rouast.com/api.')
-  parser.add_argument('--method', type=method_type, default='VITALLENS', help='Choice of method (VITALLENS, POS, CHROM, or G)')
+  parser.add_argument('--api_key', type=str, default=None, help='Your API key (Optional if using proxy auth).')
+  parser.add_argument('--method', type=method_type, default='vitallens', help='Choice of method (vitallens, pos, chrom, g, or specific version like vitallens-2.0)')
+  parser.add_argument('--proxy', type=str, default=None, help='Proxy URL (e.g., http://user:pass@10.10.1.10:3128)')
   args = parser.parse_args()
   run(args)
