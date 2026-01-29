@@ -138,7 +138,7 @@ def run(args):
         roi = None
         signal_buffer.clear()
       # Start next prediction
-      is_api_method = isinstance(args.method, str) and args.method.startswith("vitallens")
+      is_api_method = str(args.method).lower().startswith("vitallens")
       is_api_method = is_api_method or (isinstance(args.method, Method) and args.method == Method.VITALLENS)
       if len(frame_buffer) >= (API_MIN_FRAMES if is_api_method else 1):
         n_frames = len(frame_buffer)
@@ -175,7 +175,7 @@ def run(args):
 
 def method_type(name):
   try:
-    return Method[name]
+    return Method[name.upper()]
   except KeyError:
     pass
   if name.lower().startswith("vitallens"):

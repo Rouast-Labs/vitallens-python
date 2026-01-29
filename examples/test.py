@@ -53,7 +53,7 @@ def run(args=None):
   else:
     print(f"Reading full video into memory from {args.video_path}...")
     video, _ = read_video_from_path(path=args.video_path, pix_fmt='rgb24')
-    print(f"Video shape: {video.shape}")  
+    print(f"Video shape: {video.shape}")
   proxies = None
   if args.proxy:
     proxies = {"https": args.proxy, "http": args.proxy}
@@ -131,7 +131,7 @@ def run(args=None):
 
 def method_type(name):
   try:
-    return Method[name]
+    return Method[name.upper()]
   except KeyError:
     pass
   if name.lower().startswith("vitallens"):
