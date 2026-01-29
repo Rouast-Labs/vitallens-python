@@ -75,7 +75,8 @@ def mock_resolve_config():
 def create_mock_api_response(
     url: str,
     headers: dict,
-    json: dict
+    json: dict,
+    **kwargs
   ) -> Mock:
   """Create a mock api response
   
@@ -137,7 +138,7 @@ def create_mock_api_response(
 
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
 @pytest.mark.parametrize("override_global_parse", [False, True])
-@pytest.mark.parametrize("requested_model", [Method.VITALLENS])
+@pytest.mark.parametrize("requested_model", ["vitallens", "vitallens-2.0"])
 @patch('requests.post', side_effect=create_mock_api_response)
 def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, override_fps_target, override_global_parse, requested_model):
   api_key = request.getfixturevalue('test_dev_api_key')
@@ -146,7 +147,7 @@ def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, 
   test_video_faces = request.getfixturevalue('test_video_faces')
   method = VitalLensRPPGMethod(mode=Mode.BATCH,
                                api_key=api_key,
-                               requested_model=requested_model)
+                               requested_model_name=requested_model)
   data, unit, conf, note, live = method(
     inputs=test_video_path, faces=test_video_faces,
     override_fps_target=override_fps_target,
@@ -164,7 +165,7 @@ def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, 
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
 @pytest.mark.parametrize("long", [False, True])
 @pytest.mark.parametrize("override_global_parse", [False, True])
-@pytest.mark.parametrize("requested_model", [Method.VITALLENS])
+@pytest.mark.parametrize("requested_model", ["vitallens"])
 @patch('requests.post', side_effect=create_mock_api_response)
 def test_VitalLensRPPGMethod_ndarray_mock(mock_post, mock_resolve_config, request, long, override_fps_target, override_global_parse, requested_model):
   api_key = request.getfixturevalue('test_dev_api_key')
@@ -173,7 +174,7 @@ def test_VitalLensRPPGMethod_ndarray_mock(mock_post, mock_resolve_config, reques
   test_video_faces = request.getfixturevalue('test_video_faces')
   method = VitalLensRPPGMethod(mode=Mode.BATCH,
                                api_key=api_key,
-                               requested_model=requested_model)
+                               requested_model_name=requested_model)
   if long:
     n_repeats = (API_MAX_FRAMES * 3) // test_video_ndarray.shape[0] + 1
     test_video_ndarray = np.repeat(test_video_ndarray, repeats=n_repeats, axis=0)
@@ -198,7 +199,7 @@ def test_VitalLensRPPGMethod_burst_mock(mock_post, mock_resolve_config, request)
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
-  method = VitalLensRPPGMethod(mode=Mode.BURST, api_key=api_key, requested_model=Method.VITALLENS)
+  method = VitalLensRPPGMethod(mode=Mode.BURST, api_key=api_key, requested_model_name="vitallens")
   # First call, initializes state
   chunk1 = test_video_ndarray[:16]
   faces1 = test_video_faces[:16]
@@ -293,16 +294,16 @@ def test_resolve_model_config_errors():
     # Test 403 Forbidden -> VitalLensAPIKeyError
     mock_get.return_value = create_mock_response(403, {"message": "Invalid API Key"})
     with pytest.raises(VitalLensAPIKeyError, match="Invalid API Key"):
-      _resolve_model_config("invalid_key", Method.VITALLENS)
+      _resolve_model_config("invalid_key", "vitallens")
     # Test 500 Internal Server Error -> VitalLensAPIError
     mock_get.return_value = create_mock_response(500, {"message": "Server Error"})
     with pytest.raises(VitalLensAPIError, match="Server Error"):
-      _resolve_model_config("valid_key", Method.VITALLENS)
+      _resolve_model_config("valid_key", "vitallens")
 
 def test_VitalLens_API_integration(mock_resolve_config, request):
   api_key = request.getfixturevalue('test_dev_api_key')
-  method = VitalLensRPPGMethod(requested_model=Method.VITALLENS, api_key=api_key, mode=Mode.BATCH)
-  assert method.resolved_model.name == 'VITALLENS_2_0'
+  method = VitalLensRPPGMethod(requested_model_name="vitallens", api_key=api_key, mode=Mode.BATCH)
+  assert method.resolved_model == 'vitallens-2.0'
   assert method.input_size == 40
 
 @patch('vitallens.methods.vitallens._resolve_model_config')
@@ -310,7 +311,55 @@ def test_VitalLensRPPGMethod_init_errors(mock_resolve):
   """Tests that exceptions from _resolve_model_config are propagated."""
   mock_resolve.side_effect = VitalLensAPIKeyError("Test key error")
   with pytest.raises(VitalLensAPIKeyError, match="Test key error"):
-    VitalLensRPPGMethod(mode=Mode.BATCH, api_key="any_key", requested_model=Method.VITALLENS)
+    VitalLensRPPGMethod(mode=Mode.BATCH, api_key="any_key", requested_model_name="vitallens")
   mock_resolve.side_effect = VitalLensAPIError("Test server error")
   with pytest.raises(VitalLensAPIError, match="Test server error"):
-    VitalLensRPPGMethod(mode=Mode.BATCH, api_key="any_key", requested_model=Method.VITALLENS)
+    VitalLensRPPGMethod(mode=Mode.BATCH, api_key="any_key", requested_model_name="vitallens")
+
+@patch('requests.post')
+@patch('requests.get')
+def test_proxy_and_auth_offloading(mock_get, mock_post, request):
+  """Verify that proxies are passed and headers are handled correctly."""
+  # Mock config resolution success
+  mock_get.return_value = create_mock_response(200, {
+      'resolved_model': 'vitallens-2.0',
+      'config': {
+          'n_inputs': 1, 
+          'input_size': 40,
+          'roi_method': 'face',
+          'fps_target': 30
+      }
+  })
+  # Mock inference success
+  mock_post.return_value = create_mock_response(200, {
+    "vital_signs": {"ppg_waveform": {"data": [0.1]*16, "confidence": [1.0]*16}, "respiratory_waveform": {"data": [0.1]*16, "confidence": [1.0]*16}},
+    "face": {"confidence": [1.0]*16},
+    "state": {"data": []}
+  })
+  proxies = {"https": "http://proxy:8080"}
+  # Case 1: API Key + Proxy
+  # Check resolve call
+  method = VitalLensRPPGMethod(mode=Mode.BATCH, api_key="my_key", requested_model_name="vitallens", proxies=proxies)
+  args, kwargs = mock_get.call_args
+  assert kwargs['proxies'] == proxies
+  assert kwargs['headers']['x-api-key'] == "my_key"
+  # Run inference
+  test_video_ndarray = request.getfixturevalue('test_video_ndarray')
+  faces = request.getfixturevalue('test_video_faces')
+  method(test_video_ndarray[:16], faces[:16], fps=30.0)
+  # Check inference call
+  args, kwargs = mock_post.call_args
+  assert kwargs['proxies'] == proxies
+  assert kwargs['headers']['x-api-key'] == "my_key"
+  # Case 2: No API Key (Auth Offloading) + Proxy
+  method_offload = VitalLensRPPGMethod(mode=Mode.BATCH, api_key=None, requested_model_name="vitallens", proxies=proxies)
+  # Check resolve call
+  args, kwargs = mock_get.call_args
+  assert kwargs['proxies'] == proxies
+  assert 'x-api-key' not in kwargs['headers'] # Should be missing
+  # Run inference
+  method_offload(test_video_ndarray[:16], faces[:16], fps=30.0)
+  # Check inference call
+  args, kwargs = mock_post.call_args
+  assert kwargs['proxies'] == proxies
+  assert 'x-api-key' not in kwargs['headers'] # Should be missing

@@ -38,7 +38,7 @@ import os
 from typing import Union, Tuple
 
 from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP, API_RESOLVE_URL, VITAL_CODES_TO_NAMES
-from vitallens.enums import Method, Mode, METHOD_TO_NAME, NAME_TO_METHOD
+from vitallens.enums import Method, Mode
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows, assemble_results
@@ -48,22 +48,26 @@ VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_1_1, Method.VITALLENS
 
 def _resolve_model_config(
     api_key: str,
-    requested_method: Method
+    model_name: str,
+    proxies: dict = None
   ) -> dict:
   """Calls the /resolve-model endpoint to get the correct model config.
   
   Args:
     api_key: The API key
-    requested_method: The requested VitalLens model
+    model_name: The requested model name (e.g., 'vitallens', 'vitallens-2.0')
+    proxies: Dictionary mapping protocol to the URL of the proxy
   Returns:
     resolved_config: The config of the resolved model 
   """
-  headers = {"x-api-key": api_key}
+  headers = {}
+  if api_key:
+    headers["x-api-key"] = api_key
   params = {}
-  if requested_method in VITALLENS_MODELS:
-    params['model'] = METHOD_TO_NAME[requested_method]
+  if model_name != "vitallens":
+    params['model'] = model_name
   try:
-    response = requests.get(API_RESOLVE_URL, headers=headers, params=params)
+    response = requests.get(API_RESOLVE_URL, headers=headers, params=params, proxies=proxies)
     response.raise_for_status()
     data = response.json()
     # Prepare a clean config dictionary from the API response
@@ -94,32 +98,35 @@ class VitalLensRPPGMethod(RPPGMethod):
       self,
       mode: Mode,
       api_key: str,
-      requested_model: Method
+      requested_model_name: str,
+      proxies: dict = None
     ):
     """Initialize the `VitalLensRPPGMethod`
     
     Args:
       mode: The operation mode
       api_key: The API key
-      requested_model: The requested VitalLens model
+      requested_model_name: The requested VitalLens model name,
+      proxies: Dictionary mapping protocol to the URL of the proxy
     """
     super(VitalLensRPPGMethod, self).__init__(mode=mode)
     
-    if api_key is None or api_key == '':
+    if proxies is None and (api_key is None or api_key == ''):
       raise VitalLensAPIKeyError()
     self.api_key = api_key
+    self.proxies = proxies
 
     # Resolve model config
-    resolved_config = _resolve_model_config(api_key=api_key, requested_method=requested_model)
+    resolved_config = _resolve_model_config(api_key=api_key, model_name=requested_model_name, proxies=proxies)
     self.parse_config(resolved_config)
 
-    self.resolved_model = NAME_TO_METHOD.get(resolved_config['model'])
-    self.requested_model_name = METHOD_TO_NAME.get(requested_model) \
-      if requested_model != Method.VITALLENS else None
-    
+    self.resolved_model = resolved_config['model']
+    self.requested_model_name = requested_model_name if requested_model_name != "vitallens" else None
+
     if mode == Mode.BURST:
       self.state = None
       self.input_buffer = None
+
   def parse_config(self, config: dict):
     """Set properties based on the config.
     
@@ -303,7 +310,9 @@ class VitalLensRPPGMethod(RPPGMethod):
       raise ValueError("Unexpected number of frames returned. Try to set `override_global_parse` to `True` or `False`.")
     # Prepare API header and payload
     # -- by not sending fps information, ask endpoint not to do any processing
-    headers = {"x-api-key": self.api_key}
+    headers = {}
+    if self.api_key:
+      headers["x-api-key"] = self.api_key
     origin = os.getenv('VITALLENS_API_ORIGIN', 'vitallens-python')
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": origin}
     if self.requested_model_name:
@@ -316,7 +325,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       idxs = idxs[(self.n_inputs-1):] - (self.n_inputs-1)
       logging.debug(f"Providing state, which means that {self.n_inputs-1} less frames will be used and results for {self.n_inputs-1} less frames will be returned.")
     # Ask API to process video
-    response = requests.post(API_URL, headers=headers, json=payload)
+    response = requests.post(API_URL, headers=headers, json=payload, proxies=self.proxies)
     response_body = json.loads(response.text)
     # Check if call was successful
     if response.status_code != 200:

@@ -106,6 +106,8 @@ def assemble_results(
   out_data, out_unit, out_conf, out_note = {}, {}, {}, {}
   confidence_note_scalar = ', along with a confidence level between 0 and 1.' if can_provide_confidence else '. This method is not capable of providing a confidence estimate, hence returning 1.'
   confidence_note_data = ', along with frame-wise confidences between 0 and 1.' if can_provide_confidence else '. This method is not capable of providing a confidence estimate, hence returning 1.'
+  # Helper to get the method name string
+  method_name = method.value if isinstance(method, Method) else str(method)
   # Helper function to process each vital sign
   def _process_vital(name, unit, vital_name_text, min_t, estimation_fn):
     if sig_t >= min_t:
@@ -113,13 +115,13 @@ def assemble_results(
       if not np.isnan(value):
         out_data[name] = value
         out_conf[name] = confidence
-        out_note[name] = f'Estimate of the global {vital_name_text} using {method.name}{confidence_note_scalar}'
+        out_note[name] = f'Estimate of the global {vital_name_text} using {method_name}{confidence_note_scalar}'
       else:
         out_data[name], out_conf[name] = np.nan, np.nan
-        out_note[name] = f'Estimate of the global {vital_name_text} using {method.name}. Too few values available to estimate.'
+        out_note[name] = f'Estimate of the global {vital_name_text} using {method_name}. Too few values available to estimate.'
     else:
       out_data[name], out_conf[name] = np.nan, np.nan
-      out_note[name] = f'Estimate of the global {vital_name_text} using {method.name}. Too few values available to estimate.'
+      out_note[name] = f'Estimate of the global {vital_name_text} using {method_name}. Too few values available to estimate.'
     out_unit[name] = unit
   for name in pred_signals:
     if name == 'heart_rate' and 'ppg_waveform' in train_sig_names:
@@ -147,13 +149,13 @@ def assemble_results(
       out_data[name] = sig[ppg_idx]
       out_unit[name] = 'unitless'
       out_conf[name] = conf[ppg_idx]
-      out_note[name] = f'Estimate of the ppg waveform using {method.name}{confidence_note_data}'
+      out_note[name] = f'Estimate of the ppg waveform using {method_name}{confidence_note_data}'
     elif name == 'respiratory_waveform':
       resp_idx = train_sig_names.index('respiratory_waveform')
       out_data[name] = sig[resp_idx]
       out_unit[name] = 'unitless'
       out_conf[name] = conf[resp_idx]
-      out_note[name] = f'Estimate of the respiratory waveform using {method.name}{confidence_note_data}'
+      out_note[name] = f'Estimate of the respiratory waveform using {method_name}{confidence_note_data}'
     elif 'hrv' in name and 'ppg_waveform' in train_sig_names:
       hrv_params = {
         'hrv_sdnn': ('ms', 'heart rate variability (SDNN)', min_t_hrv_sdnn, HRVMetric.SDNN),

@@ -22,18 +22,19 @@ import json
 import numpy as np
 import os
 import pytest
+from unittest.mock import patch, ANY
 
 import sys
 sys.path.append('../vitallens-python')
 
 from vitallens.client import VitalLens, Method
 
-@pytest.mark.parametrize("method", [Method.G, Method.CHROM, Method.POS])
+@pytest.mark.parametrize("method_arg", [Method.G, "chrom", "pos"])
 @pytest.mark.parametrize("detect_faces", [True, False])
 @pytest.mark.parametrize("file", [True, False])
 @pytest.mark.parametrize("export", [True, False])
-def test_VitalLens(request, method, detect_faces, file, export):
-  vl = VitalLens(method=method, detect_faces=detect_faces, export_to_json=export)
+def test_VitalLens(request, method_arg, detect_faces, file, export):
+  vl = VitalLens(method=method_arg, detect_faces=detect_faces, export_to_json=export)
   if file:
     test_video_path = request.getfixturevalue('test_video_path')
     result = vl(test_video_path, faces = None if detect_faces else [247, 57, 440, 334], export_filename="test")
@@ -86,3 +87,28 @@ def test_VitalLens_API(request):
     np.testing.assert_allclose(result[0]['vital_signs']['hrv_rmssd']['value'], 30, atol=20)
     np.testing.assert_allclose(result[0]['vital_signs']['hrv_lfhf']['value'], 1.5, atol=1.0)
   assert not os.path.exists("test.json")
+
+def test_VitalLens_proxies():
+  """Test that proxies are passed down correctly."""
+  proxies = {"https": "http://10.10.1.10:3128"}
+  with patch('vitallens.client.VitalLensRPPGMethod') as MockRPPG:
+    vl = VitalLens(method="vitallens-2.0", api_key="test", proxies=proxies)
+    MockRPPG.assert_called_with(
+      mode=ANY,
+      api_key="test",
+      requested_model_name="vitallens-2.0",
+      proxies=proxies
+    )
+
+def test_VitalLens_auth_offloading():
+  """Test initialization without API key (for proxy auth offloading)."""
+  proxies = {"https": "http://auth-proxy:8080"}
+  with patch('vitallens.client.VitalLensRPPGMethod') as MockRPPG:
+    # Should NOT raise an error despite api_key being None
+    vl = VitalLens(method="vitallens", api_key=None, proxies=proxies)
+    MockRPPG.assert_called_with(
+      mode=ANY,
+      api_key=None,
+      requested_model_name="vitallens",
+      proxies=proxies
+    )
