@@ -18,36 +18,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 
-class Method(IntEnum):
-  VITALLENS = 1           # Automatic model selection
-  VITALLENS_1_0 = 2       # Force VitalLens 1.0
-  VITALLENS_1_1 = 3       # Force VitalLens 1.1
-  VITALLENS_2_0 = 4       # Force VitalLens 2.0
-  G = 5
-  CHROM = 6
-  POS = 7
-
-METHOD_TO_NAME = {
-  Method.VITALLENS: 'vitallens',
-  Method.VITALLENS_1_0: 'vitallens-1.0',
-  Method.VITALLENS_1_1: 'vitallens-1.1',
-  Method.VITALLENS_2_0: 'vitallens-2.0',
-  Method.G: 'g',
-  Method.CHROM: 'chrom',
-  Method.POS: 'pos'
-}
-
-NAME_TO_METHOD = {
-  'vitallens': Method.VITALLENS,
-  'vitallens-1.0': Method.VITALLENS_1_0,
-  'vitallens-1.1': Method.VITALLENS_1_1,
-  'vitallens-2.0': Method.VITALLENS_2_0,
-  'g': Method.G,
-  'chrom': Method.CHROM,
-  'pos': Method.POS
-}
+class Method(Enum):
+  # Automatic model selection
+  VITALLENS = "vitallens"
+  # Simple methods
+  G = "g"
+  CHROM = "chrom"
+  POS = "pos"
+  # DEPRECATED. Kept for backward compatibility.
+  # -> Use string values as args for VitalLens
+  VITALLENS_1_0 = "vitallens-1.0"
+  VITALLENS_1_1 = "vitallens-1.1"
+  VITALLENS_2_0 = "vitallens-2.0"
 
 class Mode(IntEnum):
   BATCH = 1

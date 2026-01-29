@@ -81,7 +81,8 @@ def test_reassemble_from_windows_edge_cases(name, x_batches, idxs_batches, expec
 @pytest.mark.parametrize("signals", [('ppg_waveform',), ('respiratory_waveform',), ('ppg_waveform','respiratory_waveform')])
 @pytest.mark.parametrize("can_provide_confidence", [True, False])
 @pytest.mark.parametrize("min_t_too_long", [True, False])
-def test_assemble_results(signals, can_provide_confidence, min_t_too_long):
+@pytest.mark.parametrize("method_arg", [Method.G, "g", "vitallens-2.0"])
+def test_assemble_results(signals, can_provide_confidence, min_t_too_long, method_arg):
   sample_video_hr = 73.2
   sample_video_rr = 15.
   sig_ppg_ir = [-0.30989337,-0.34880125,-0.51679734,-0.8264251,-1.16504221,-1.42803273,-1.50548274,-1.27397076,-0.75049456,-0.06296925,0.55622022,1.03613509,1.33531581,1.49509228,1.48178068,1.37909062,1.2243668,1.12657893,1.0408531,0.88764567,0.69828361,0.53705074,0.51951649,0.53721108,0.56165349,0.50940172,0.41704494,0.26956212,0.1083913,-0.01021207,-0.05248365,-0.05707812,0.03133779,0.11226076,0.22743949,0.11899808,-0.07210865,-0.30002545,-0.33543694,-0.43031631,-0.47661662,-0.59501978,-0.63097275,-0.74791876,-0.87790608,-1.05945451,-1.24667428,-1.49371626,-1.6371542,-1.71251337,-1.71386794,-1.75321702,-1.82464616,-1.83582955,-1.73761775,-1.64881252,-1.06284365,-0.2302026,0.87515657,1.56372653,1.93155176,2.02379647,1.98393698,1.87873691,1.74305679,1.48084475,1.19594038,0.90211362,0.73778882,0.6274904,0.56723345,0.47625067,0.37326869,0.24843488,0.11191973,-0.04886665,-0.24323905,-0.42655308,-0.58504122,-0.72104162,-0.80480045,-0.82562858,-0.50066783,-0.05626648,0.5518156,0.6590093,0.73628254,0.65119874,0.77386199,0.72584785,0.65558003,0.49750651,0.39234535,0.21854192,0.14756766,0.08148715,0.06862309,-0.05206853,-0.19597003,-0.38785157,-0.53376963,-0.72356122,-0.924077,-1.120926,-1.28434747,-1.43064954,-1.5675398,-1.43950115,-0.81664647,0.16796192,1.08697704,1.55443842,1.68625269,1.52211757,1.39033429,1.1453985,0.93370787,0.57538922,0.22143884,-0.08772584,-0.33665,-0.48391509,-0.61660534,-0.72096744,-0.87922138,-1.07761103,-1.28375948,-1.51790998,-1.68144848,-1.47123422,-1.10773505,-0.47217152,0.0946784,0.83295787,1.28496731,1.42196718,1.25495147,1.02965942,0.8611786]
@@ -106,12 +107,14 @@ def test_assemble_results(signals, can_provide_confidence, min_t_too_long):
                                                                       fps=fps,
                                                                       train_sig_names=train_signals,
                                                                       pred_signals=pred_signals,
-                                                                      method=Method.G,
+                                                                      method=method_arg,
                                                                       can_provide_confidence=True,
                                                                       min_t_hr=8. if min_t_too_long else 2.,
                                                                       min_t_rr=8. if min_t_too_long else 4.)
+  method_str = method_arg.value if isinstance(method_arg, Method) else str(method_arg)
   if 'ppg_waveform' in signals:
     np.testing.assert_allclose(out_data['ppg_waveform'], sig_ppg_ir)
+    assert method_str in out_note['ppg_waveform']
     'ppg_waveform' in out_note['ppg_waveform']
     if min_t_too_long:
       'heart_rate' not in out_data
@@ -119,6 +122,7 @@ def test_assemble_results(signals, can_provide_confidence, min_t_too_long):
       np.testing.assert_allclose(out_data['heart_rate'], sample_video_hr, atol=0.5)
   if 'respiratory_waveform' in signals:
     np.testing.assert_allclose(out_data['respiratory_waveform'], sig_resp)
+    assert method_str in out_note['respiratory_waveform']
     'respiratory_waveform' in out_note['respiratory_waveform']
     if min_t_too_long:
       'respiratory_rate' not in out_data

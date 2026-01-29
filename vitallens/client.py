@@ -41,9 +41,10 @@ logging.getLogger().setLevel("INFO")
 class VitalLens:
   def __init__(
       self, 
-      method: Method = Method.VITALLENS,
+      method: Union[Method, str] = Method.VITALLENS,
       mode: Mode = Mode.BATCH,
       api_key: str = None,
+      proxies: dict = None,
       detect_faces: bool = True,
       estimate_rolling_vitals: bool = True,
       fdet_max_faces: int = 1,
@@ -58,7 +59,8 @@ class VitalLens:
     Args:
       method: The rPPG method to be used for inference.
       mode: Operate in batch or burst mode
-      api_key: Usage key for the VitalLens API (required for Method.VITALLENS)
+      api_key: Usage key for the VitalLens API (required for vitallens methods, unless using proxy)
+      proxies: Dictionary mapping protocol to the URL of the proxy.
       detect_faces: `True` if faces need to be detected, otherwise `False`.
       estimate_rolling_vitals: Set `True` to compute rolling vitals (e.g., `rolling_heart_rate`).
       fdet_max_faces: The maximum number of faces to detect (if necessary).
@@ -69,17 +71,26 @@ class VitalLens:
       export_to_json: If `True`, write results to a json file.
       export_dir: The directory to which json files are written.
     """
+    if isinstance(method, Method):
+      self.method_name = method.value
+    else:
+      self.method_name = str(method)
     self.mode = mode
-    if method in [Method.VITALLENS, Method.VITALLENS_1_0, Method.VITALLENS_1_1, Method.VITALLENS_2_0]:
-      self.rppg = VitalLensRPPGMethod(mode=mode, api_key=api_key, requested_model=method)
-    elif method == Method.G:
+    if self.method_name.startswith("vitallens"):
+      self.rppg = VitalLensRPPGMethod(
+        mode=mode,
+        api_key=api_key,
+        requested_model_name=self.method_name,
+        proxies=proxies
+      )
+    elif self.method_name == "g":
       self.rppg = GRPPGMethod(mode=mode)
-    elif method == Method.CHROM:
+    elif self.method_name == "chrom":
       self.rppg = CHROMRPPGMethod(mode=mode)
-    elif method == Method.POS:
+    elif self.method_name == "pos":
       self.rppg = POSRPPGMethod(mode=mode)
     else:
-      raise ValueError(f"Method {self.config['model']} not implemented!")
+      raise ValueError(f"Unknown method or model: {self.method_name}")
     self.detect_faces = detect_faces
     self.estimate_rolling_vitals = estimate_rolling_vitals
     self.export_to_json = export_to_json
