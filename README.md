@@ -18,7 +18,7 @@
 
 The library provides:
 - A simple interface to the powerful **VitalLens API** for state-of-the-art vital sign estimation.
-- Implementations of classic rPPG algorithms (`POS`, `CHROM`, `G`) for local, API-free processing.
+- Implementations of classic rPPG algorithms (`pos`, `chrom`, `g`) for local, API-free processing.
 - Support for video files and in-memory video as `np.ndarray`
 - Fast face detection if required - you can also pass existing detections
 
@@ -34,7 +34,7 @@ pip install vitallens
 
 ## Quickstart
 
-To get started, you'll need an API key for the `VITALLENS` methods. You can get a free key from the [rouast.com API page](https://www.rouast.com/api).
+To get started, you'll need an API key for the `vitallens` methods. You can get a free key from the [rouast.com API page](https://www.rouast.com/api).
 
 Here's a quick example of how to analyze a video file and get vital signs:
 
@@ -45,8 +45,8 @@ import vitallens
 API_KEY = "YOUR_API_KEY"
 
 # Initialize the client.
-# Method.VITALLENS automatically selects the best available model for your plan.
-vl = vitallens.VitalLens(method=vitallens.Method.VITALLENS, api_key=API_KEY)
+# `vitallens` automatically selects the best available model for your plan.
+vl = vitallens.VitalLens(method="vitallens", api_key=API_KEY)
 
 # Analyze a video file
 # You can also pass a numpy array of shape (n_frames, height, width, 3)
@@ -78,27 +78,28 @@ On newer versions of Python you may face the issue that the dependency `onnxrunt
 To start using `vitallens`, first create an instance of `vitallens.VitalLens`. 
 It can be configured using the following parameters:
 
-| Parameter               | Description                                                                        | Default            |
-|-------------------------|------------------------------------------------------------------------------------|--------------------|
-| method                  | Inference method. {e.g., `Method.VITALLENS`, `Method.POS`}                         | `Method.VITALLENS` |
-| mode                    | Operation mode. {`Mode.BATCH` for indep. videos or `Mode.BURST` for video stream}  | `Mode.BATCH`       |
-| api_key                 | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`             |
-| detect_faces            | `True` if faces need to be detected, otherwise `False`.                            | `True`             |
-| estimate_rolling_vitals | Set `True` to compute rolling vitals (e.g., `rolling_heart_rate`).                 | `True`             |
-| fdet_max_faces          | The maximum number of faces to detect (if necessary).                              | `1`                |
-| fdet_fs                 | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`              |
-| export_to_json          | If `True`, write results to a json file.                                           | `True`             |
-| export_dir              | The directory to which json files are written.                                     | `.`                |
+| Parameter               | Description                                                                        | Default      |
+|-------------------------|------------------------------------------------------------------------------------|--------------|
+| method                  | Inference method. {e.g., `vitallens`, `pos`}                                       | `vitallens`  |
+| mode                    | Operation mode. {`Mode.BATCH` for indep. videos or `Mode.BURST` for video stream}  | `Mode.BATCH` |
+| api_key                 | Usage key for the VitalLens API (required for `Method.VITALLENS`)                  | `None`       |
+| proxies                 | Dictionary mapping protocol to the URL of the proxy (for auth offloading/firewall) | `None`       |
+| detect_faces            | `True` if faces need to be detected, otherwise `False`.                            | `True`       |
+| estimate_rolling_vitals | Set `True` to compute rolling vitals (e.g., `rolling_heart_rate`).                 | `True`       |
+| fdet_max_faces          | The maximum number of faces to detect (if necessary).                              | `1`          |
+| fdet_fs                 | Frequency [Hz] at which faces should be scanned - otherwise linearly interpolated. | `1.0`        |
+| export_to_json          | If `True`, write results to a json file.                                           | `True`       |
+| export_dir              | The directory to which json files are written.                                     | `.`          |
 
 ### Methods
 
 You can choose from several rPPG methods:
 
-- `Method.VITALLENS`: The recommended method. Uses the VitalLens API and automatically selects the best model for your API key (e.g., VitalLens 2.0 with HRV support).
-- `Method.VITALLENS_2_0`: Forces the use of the VitalLens 2.0 model.
-- `Method.VITALLENS_1_0`: Forces the use of the VitalLens 1.0 model.
-- `Method.VITALLENS_1_1`: Forces the use of the VitalLens 1.1 model.
-- `Method.POS`, `Method.CHROM`, `Method.G`: Classic rPPG algorithms that run locally and do not require an API key.
+- `vitallens`: The recommended method. Uses the VitalLens API and automatically selects the best model for your API key (e.g., VitalLens 2.0 with HRV support).
+- `vitallens-2.0`: Forces the use of the VitalLens 2.0 model.
+- `vitallens-1.0`: Forces the use of the VitalLens 1.0 model.
+- `vitallens-1.1`: Forces the use of the VitalLens 1.1 model.
+- `pos`, `chrom`, `g`: Classic rPPG algorithms that run locally and do not require an API key.
 
 ### Estimating vitals
 
@@ -123,15 +124,15 @@ Calls are configured using the following parameters:
 | `ppg_waveform`             | Continuous waveform | Always                                                                                     |
 | `heart_rate`               | Global value        | Video at least 5 seconds long                                                              |
 | `rolling_heart_rate`       | Continuous values   | Video at least 10 seconds long                                                             |
-| `respiratory_waveform`     | Continuous waveform | Using `VITALLENS`, `VITALLENS_1_0`, `VITALLENS_1_1`, or `VITALLENS_2_0`                    |
-| `respiratory_rate`         | Global value        | Video at least 10 seconds long and using `VITALLENS`, `VITALLENS_1_0`, `VITALLENS_1_1`, or `VITALLENS_2_0`  |
-| `rolling_respiratory_rate` | Continuous values   | Video at least 30 seconds long and using `VITALLENS`, `VITALLENS_1_0`, `VITALLENS_1_1`, or `VITALLENS_2_0`  |
-| `hrv_sdnn`                 | Global value        | Video at least 20 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
-| `hrv_rmssd`                | Global value        | Video at least 20 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
-| `hrv_lfhf`                 | Global value        | Video at least 55 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
-| `rolling_hrv_sdnn`         | Continuous values   | Video at least 60 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
-| `rolling_hrv_rmssd`        | Continuous values   | Video at least 60 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
-| `rolling_hrv_lfhf`         | Continuous values   | Video at least 60 seconds long and using `VITALLENS` or `VITALLENS_2_0`                    |
+| `respiratory_waveform`     | Continuous waveform | Using `vitallens`, `vitallens-1.0`, `vitallens-1.1`, or `vitallens-2.0`                    |
+| `respiratory_rate`         | Global value        | Video at least 10 seconds long and using `vitallens`, `vitallens-1.0`, `vitallens-1.1`, or `vitallens-2.0`  |
+| `rolling_respiratory_rate` | Continuous values   | Video at least 30 seconds long and using `vitallens`, `vitallens-1.0`, `vitallens-1.1`, or `vitallens-2.0`  |
+| `hrv_sdnn`                 | Global value        | Video at least 20 seconds long and using `vitallens` or `vitallens-2.0`                    |
+| `hrv_rmssd`                | Global value        | Video at least 20 seconds long and using `vitallens` or `vitallens-2.0`                    |
+| `hrv_lfhf`                 | Global value        | Video at least 55 seconds long and using `vitallens` or `vitallens-2.0`                    |
+| `rolling_hrv_sdnn`         | Continuous values   | Video at least 60 seconds long and using `vitallens` or `vitallens-2.0`                    |
+| `rolling_hrv_rmssd`        | Continuous values   | Video at least 60 seconds long and using `vitallens` or `vitallens-2.0`                    |
+| `rolling_hrv_lfhf`         | Continuous values   | Video at least 60 seconds long and using `vitallens` or `vitallens-2.0`                    |
 
 Note that rolling metrics are only computed when `estimate_rolling_vitals=True`.
 
@@ -163,21 +164,48 @@ The estimation results are returned as a `list`. It contains a `dict` for each d
 ]
 ```
 
+### Using a Proxy
+
+`vitallens` supports proxies for two primary use cases:
+
+#### 1. Standard Network Proxy
+
+If you need to route traffic through a corporate firewall or proxy server, pass the `proxies` argument. You must still provide your `api_key`.
+
+```python
+proxies = {
+  'https': 'http://10.10.1.10:3128',
+}
+vl = VitalLens(method="vitallens-2.0", api_key="YOUR_KEY", proxies=proxies)
+```
+
+#### 2. Authentication Offloading (Enterprise)
+
+If you are using a secure gateway that injects the API Key for you, you can initialize the client without an `api_key`. The client will send requests without the `x-api-key` header, expecting the proxy to add it before forwarding to the VitalLens API.
+
+```python
+proxies = {
+  'https': 'http://my-secure-gateway.internal:8080',
+}
+# API Key is omitted; the gateway handles authentication
+vl = VitalLens(method="vitallens-2.0", proxies=proxies)
+```
+
 ## Examples to get started
 
 ### Live test with webcam in real-time
 
 Test `vitallens` in real-time with your webcam using the script `examples/live.py`.
-This uses `Mode.BURST` to update results continuously (approx. every 2 seconds for `Method.VITALLENS`).
+This uses `Mode.BURST` to update results continuously (approx. every 2 seconds for `vitallens`).
 Some options are available:
 
-- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
-- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+- `method`: Choose from [`vitallens`, `pos`, `g`, `chrom`] (Default: `vitallens`)
+- `api_key`: Pass your API Key. Required if using `method=vitallens`.
 
 May need to install requirements first: `pip install opencv-python`
 
 ```
-python examples/live.py --method=VITALLENS --api_key=YOUR_API_KEY
+python examples/live.py --method=vitallens --api_key=YOUR_API_KEY
 ```
 
 ### Compare results with gold-standard labels using our example script
@@ -185,10 +213,10 @@ python examples/live.py --method=VITALLENS --api_key=YOUR_API_KEY
 There is an example Python script in `examples/test.py` which uses `Mode.BATCH` to run vitals estimation and plot the predictions against ground truth labels recorded with gold-standard medical equipment.
 Some options are available:
 
-- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
+- `method`: Choose from [`vitallens`, `pos`, `g`, `chrom`] (Default: `vitallens`)
 - `video_path`: Path to video (Default: `examples/sample_video_1.mp4`)
 - `vitals_path`: Path to gold-standard vitals (Default: `examples/sample_vitals_1.csv`)
-- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+- `api_key`: Pass your API Key. Required if using `method=vitallens`.
 
 May need to install requirements first: `pip install matplotlib pandas`
 
@@ -202,7 +230,7 @@ This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) data
 
 ### Use VitalLens API to estimate vitals from a video file
 
-First, we create an instance of `vitallens.VitalLens` named `vl` while choosing `vitallens.Method.VITALLENS` as estimation method and providing the API Key.
+First, we create an instance of `vitallens.VitalLens` named `vl` while choosing `vitallens` as estimation method and providing the API Key.
 
 Then, we can call `vl` to estimate vitals.
 In this case, we are estimating vitals from a video located at `video.mp4`.
@@ -211,13 +239,13 @@ The `result` contains the estimation results.
 ```python
 from vitallens import VitalLens, Method
 
-vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
 result = vl("video.mp4")
 ```
 
 ### Use VitalLens API on an `np.ndarray` of video frames
 
-First, we create an instance of `vitallens.VitalLens` named `vl` while choosing `vitallens.Method.VITALLENS` as estimation method and providing the API Key.
+First, we create an instance of `vitallens.VitalLens` named `vl` while choosing `vitallens` as estimation method and providing the API Key.
 
 Then, we can call `vl` to estimate vitals.
 In this case, we are passing a `np.ndarray` `my_video_arr` of shape `(n, h, w, c)` and with `dtype` `np.uint8` containing video data.
@@ -230,7 +258,7 @@ from vitallens import VitalLens, Method
 
 my_video_arr = ...
 my_video_fps = 30
-vl = VitalLens(method=Method.VITALLENS, api_key="YOUR_API_KEY")
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
 result = vl(my_video_arr, fps=my_video_fps)
 ```
 
@@ -266,7 +294,7 @@ docker run vitallens \
   --api_key "your_api_key_here" \
   --vitals_path "examples/sample_vitals_2.csv" \
   --video_path "examples/sample_video_2.mp4" \
-  --method "VITALLENS"
+  --method "vitallens"
 ```
 
 You can also run it on your own video:
@@ -275,7 +303,7 @@ You can also run it on your own video:
 docker run vitallens \          
   --api_key "your_api_key_here" \
   --video_path "path/to/your/video.mp4" \
-  --method "VITALLENS"
+  --method "vitallens"
 ```
 
 4. View the results
