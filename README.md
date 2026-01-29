@@ -45,7 +45,7 @@ import vitallens
 API_KEY = "YOUR_API_KEY"
 
 # Initialize the client.
-# `vitallens` automatically selects the best available model for your plan.
+# "vitallens" automatically selects the best available model for your plan.
 vl = vitallens.VitalLens(method="vitallens", api_key=API_KEY)
 
 # Analyze a video file
@@ -75,7 +75,7 @@ On newer versions of Python you may face the issue that the dependency `onnxrunt
 
 ### Configuring `vitallens.VitalLens`
 
-To start using `vitallens`, first create an instance of `vitallens.VitalLens`. 
+To start using `vitallens`, first create an instance of `vitallens.VitalLens`.
 It can be configured using the following parameters:
 
 | Parameter               | Description                                                                        | Default      |
@@ -223,7 +223,7 @@ May need to install requirements first: `pip install matplotlib pandas`
 For example, to reproduce the results from the banner image on the [VitalLens API Webpage](https://www.rouast.com/api/):
 
 ```
-python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.mp4 --vitals_path=examples/sample_vitals_2.csv --api_key=YOUR_API_KEY
+python examples/test.py --method=vitallens --video_path=examples/sample_video_2.mp4 --vitals_path=examples/sample_vitals_2.csv --api_key=YOUR_API_KEY
 ```
 
 This sample is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
@@ -265,7 +265,7 @@ result = vl(my_video_arr, fps=my_video_fps)
 ### Run example script with Docker
 
 If you encounter issues installing `vitallens` dependencies directly, you can use our Docker image, which contains all necessary tools and libraries.
-This docker image is set up to execute the example Python script in `examples/test.py` for you. 
+This docker image is set up to execute the example Python script in `examples/test.py` for you.
 
 #### Prerequisites
 
@@ -326,7 +326,7 @@ python -m build
 
 ## Linting and tests
 
-Before running tests, please make sure that you have an environment variable `VITALLENS_DEV_API_KEY` set to a valid API Key. 
+Before running tests, please make sure that you have an environment variable `VITALLENS_DEV_API_KEY` set to a valid API Key.
 To lint and run tests:
 
 ```
