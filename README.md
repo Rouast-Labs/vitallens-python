@@ -67,9 +67,9 @@ if results:
 
 ### Troubleshooting
 
-General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable. On Windows, [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/) must also be installed.
+General prerequisites are `python>=3.10` and `ffmpeg` installed and accessible via the `$PATH` environment variable. On Windows, [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/) must also be installed.
 
-On newer versions of Python you may face the issue that the dependency `onnxruntime` cannot be installed via pip. If you are using `conda`, you can try installing it via `conda install -c conda-forge onnxruntime`, and then run `pip install vitallens` again. Otherwise try using Python 3.9, 3.10, or 3.11.
+On newer versions of Python you may face the issue that the dependency `onnxruntime` cannot be installed via pip. If you are using `conda`, you can try installing it via `conda install -c conda-forge onnxruntime`, and then run `pip install vitallens` again. Otherwise try using Python 3.10 or 3.11.
 
 ## How to use
 
