@@ -217,7 +217,7 @@ class VitalLens:
       if self.estimate_rolling_vitals:
         estimate_rolling_vitals(
           vital_signs_dict=face_result['vital_signs'], data=data, conf=conf,
-          signals_available=self.rppg.signals, fps=fps, video_duration_s=video_duration_s)
+          signals_available=set(self.rppg.signals), fps=fps, video_duration_s=video_duration_s)
       results.append(face_result)
     # Export to json
     if self.export_to_json:
