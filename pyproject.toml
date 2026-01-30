@@ -12,7 +12,7 @@ authors = [
 ]
 description = "Vital sign estimation from facial video"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["python", "rppg", "vital signs monitoring", "heart rate", "pulse", "respiration"]
 license = {text = "MIT License"}
 classifiers = [
