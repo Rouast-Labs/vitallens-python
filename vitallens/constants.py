@@ -38,16 +38,6 @@ if 'API_RESOLVE_URL' in os.environ:
 # API_URL="https://api-dev.rouast.com/vitallens-dev/file"
 # API_RESOLVE_URL="https://api-dev.rouast.com/vitallens-dev/resolve-model"
 
-VITAL_CODES_TO_NAMES = {
-  'ppg': 'ppg_waveform',
-  'resp': 'respiratory_waveform',
-  'hr': 'heart_rate',
-  'rr': 'respiratory_rate',
-  'hrv_sdnn': 'hrv_sdnn',
-  'hrv_rmssd': 'hrv_rmssd',
-  'hrv_lfhf': 'hrv_lfhf'
-}
-
 # Video error message
 VIDEO_PARSE_ERROR = "Unable to parse input video. There may be an issue with the video file."
 

@@ -23,7 +23,6 @@ import numpy as np
 from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
-from prpy.numpy.physio import CALC_HR_MIN_T
 from typing import Union, Tuple
 
 from vitallens.buffer import SignalBuffer
@@ -130,22 +129,24 @@ class SimpleRPPGMethod(RPPGMethod):
                                s_in=sig_ds,
                                t_out=np.arange(inputs_shape[0]),
                                axis=1, extrapolate=True)
-    # Filter and add dim (1, n_frames)
+    # Filter (n_frames,)
     sig = self.pulse_filter(sig, fps)
-    sig = np.expand_dims(sig, axis=0)
-    # Simple rPPG method cannot specify confidence or live. Set to always 1.
-    conf = np.ones_like(sig)
-    live = np.ones_like(sig[0])
+    # Package into dict
+    sig_dict = {'ppg_waveform': sig}
+    conf_dict = {'ppg_waveform': np.ones_like(sig)}
+    live = np.ones_like(sig)
+    # Resolve method name
+    method_name = self.method.value if hasattr(self.method, 'value') else str(self.method)
     # Assemble and return the results
-    return assemble_results(sig=sig,
-                            conf=conf,
-                            live=live,
-                            fps=fps,
-                            train_sig_names=['ppg_waveform'],
-                            pred_signals=self.signals,
-                            method=self.method,
-                            min_t_hr=CALC_HR_MIN_T,
-                            can_provide_confidence=False)
+    return assemble_results(
+      sig=sig_dict,
+      conf=conf_dict,
+      live=live,
+      fps=fps,
+      pred_signals=self.signals,
+      method_name=method_name,
+      can_provide_confidence=False
+    )
   def reset(self):
     """Reset"""
     if self.op_mode == Mode.BURST:
