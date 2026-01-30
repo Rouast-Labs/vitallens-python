@@ -130,7 +130,7 @@ def assemble_results(
               conf_est = np.nanmean(conf_src)
           out_data[name] = val_est
           out_conf[name] = conf_est
-          out_note[name] = f"Derived {display_name} from {source} using {method_name}{conf_txt_scalar}"
+          out_note[name] = f"Global estimate of {display_name} using {method_name}{conf_txt_scalar}"
         except Exception as e:
           logging.warning(f"Failed to derive {name}: {e}")
           out_data[name] = np.nan

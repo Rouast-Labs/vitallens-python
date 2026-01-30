@@ -29,7 +29,7 @@ from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
 from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
-from prpy.numpy.physio import API_KEY_MAP
+from prpy.numpy.physio import VITAL_ALIAS_MAP
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -73,7 +73,7 @@ def _resolve_model_config(
     resolved_config['model'] = data['resolved_model']
     if 'supported_vitals' in resolved_config:
       vitals = resolved_config.pop('supported_vitals')
-      resolved_config['signals'] = {API_KEY_MAP.get(c, c) for c in vitals}
+      resolved_config['signals'] = {VITAL_ALIAS_MAP.get(c, c) for c in vitals}
     return resolved_config
   except requests.exceptions.HTTPError as e:
     error_msg = f"Failed to resolve model config: Status {e.response.status_code}"
