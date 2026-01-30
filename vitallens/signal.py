@@ -68,11 +68,9 @@ def assemble_results(
     conf: Dict of estimation confidence arrays {name: array}. Each array shape (n_frames,)
     live: The liveness confidence. Shape (n_frames,)
     fps: The sampling rate
-    train_sig_names: The train signal names of the method
     pred_signals: The pred signals specs of the method
-    method: The used method
+    method_name: The name of the used method
     can_provide_confidence: Whether the method can provide a confidence estimate
-    hrv_conf_threshold: Peak detection confidence threshold for hrv estimation
   Returns:
     Tuple of
        - out_data: The estimated data/value for each signal.
@@ -155,7 +153,7 @@ def estimate_rolling_vitals(
     video_duration_s: float
   ):
   """Helper to calculate and append rolling vitals to the results dictionary.
-  
+
   Args:
     vital_signs_dict: The draft dict of vital signs to be modified
     data: The estimated data/value for each signal.
@@ -178,7 +176,7 @@ def estimate_rolling_vitals(
       }
 
   target_vitals = signals_available.intersection(VITAL_REGISTRY.keys())
-  for name, meta in target_vitals:
+  for name in target_vitals:
     meta = VITAL_REGISTRY[name]
     # Validation checks
     if 'max_t' not in meta:
