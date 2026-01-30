@@ -29,7 +29,7 @@ from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
 from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
-from prpy.numpy.physio import CALC_HR_MIN_T, CALC_RR_MIN_T
+from prpy.numpy.physio import API_KEY_MAP
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -37,14 +37,12 @@ import requests
 import os
 from typing import Union, Tuple
 
-from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP, API_RESOLVE_URL, VITAL_CODES_TO_NAMES
-from vitallens.enums import Method, Mode
+from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP, API_RESOLVE_URL
+from vitallens.enums import Mode
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows, assemble_results
 from vitallens.utils import check_faces_in_roi
-
-VITALLENS_MODELS = [Method.VITALLENS_1_0, Method.VITALLENS_1_1, Method.VITALLENS_2_0]
 
 def _resolve_model_config(
     api_key: str,
@@ -75,7 +73,7 @@ def _resolve_model_config(
     resolved_config['model'] = data['resolved_model']
     if 'supported_vitals' in resolved_config:
       vitals = resolved_config.pop('supported_vitals')
-      resolved_config['signals'] = {VITAL_CODES_TO_NAMES[c] for c in vitals if c in VITAL_CODES_TO_NAMES}
+      resolved_config['signals'] = {API_KEY_MAP.get(c, c) for c in vitals}
     return resolved_config
   except requests.exceptions.HTTPError as e:
     error_msg = f"Failed to resolve model config: Status {e.response.status_code}"
@@ -139,6 +137,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     self.signals = config.get('signals', set())
     self.est_window_length = 0
     self.est_window_overlap = 0
+
   def __call__(
       self,
       inputs: Union[np.ndarray, str],
@@ -198,36 +197,54 @@ class VitalLensRPPGMethod(RPPGMethod):
     logging.info(
       f"Analyzing video of {expected_ds_n} frames using {n_splits} request{'s' if n_splits > 1 else ''}. "
       f"Using {n_splits * split_len} frames in total{' including overlaps' if n_splits > 1 else ''}...")
-    # Process the splits in parallel
+    # Process the batches in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
       results = list(executor.map(lambda i: self.process_api_batch(
         batch=i, n_batches=n_splits, inputs=frames, inputs_shape=inputs_shape,
         faces=faces, fps_target=fps_target, fps=fps, global_parse=global_parse,
         start=None if n_splits == 1 else start_idxs[i],
         end=None if n_splits == 1 else end_idxs[i]), range(n_splits)))
-    # Aggregate the results
+    # Transpose results (list of tuples -> tuple of lists)
     sig_results, conf_results, live_results, idxs_results = zip(*results)
-    sig_ds, idxs = reassemble_from_windows(x=sig_results, idxs=idxs_results)
-    conf_ds, _ = reassemble_from_windows(x=conf_results, idxs=idxs_results)
-    live_ds = reassemble_from_windows(x=np.asarray(live_results)[:,np.newaxis], idxs=idxs_results)[0][0]
-    # Interpolate to original sampling rate
-    sig = interpolate_filtered(t_in=idxs, s_in=sig_ds, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
-    conf = interpolate_filtered(t_in=idxs, s_in=conf_ds, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
-    live = interpolate_filtered(t_in=idxs, s_in=live_ds, t_out=np.arange(inputs_n), axis=0, extrapolate=True)
-    # Filter only in batch mode (2, n_frames)
+    # Aggregate sig estimates
+    keys = sorted(list(sig_results[0].keys())) if sig_results else []
+    if keys:
+      def stack_dicts(dict_list):
+        return np.array([[b.get(k, np.full(len(idxs_results[i]), np.nan)) for k in keys] 
+                        for i, b in enumerate(dict_list)])
+      sig_tensor = stack_dicts(sig_results)
+      conf_tensor = stack_dicts(conf_results)
+      # Returns (n_channels, total_valid_frames)
+      rec_sig, idxs = reassemble_from_windows(x=sig_tensor, idxs=idxs_results)
+      rec_conf, _ = reassemble_from_windows(x=conf_tensor, idxs=idxs_results)
+      # Interpolate to original sampling rate (n_channels, inputs_n)
+      sig = interpolate_filtered(t_in=idxs, s_in=rec_sig, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
+      conf = interpolate_filtered(t_in=idxs, s_in=rec_conf, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
+      # Unpack
+      sig_ds = dict(zip(keys, sig))
+      conf_ds = dict(zip(keys, conf))
+    else:
+      sig_ds, conf_ds = {}, {}
+    # Aggregate liveness
+    live_stacked = np.array(live_results)[:, np.newaxis, :]
+    rec_live, _ = reassemble_from_windows(x=live_stacked, idxs=idxs_results)
+    live = interpolate_filtered(t_in=idxs, s_in=rec_live[0], t_out=np.arange(inputs_n), axis=0, extrapolate=True)
+    # Postprocess
     if self.op_mode == Mode.BATCH:
-      sig = np.asarray([self.postprocess(p, fps, type=name) for p, name in zip(sig, ['ppg', 'resp'])])
+      for key in sig_ds:
+        if 'waveform' in key:
+          sig_ds[key] = self.postprocess(sig_ds[key], fps, type=key)
     # Assemble and return the results
-    return assemble_results(sig=sig,
-                            conf=conf,
-                            live=live,
-                            fps=fps,
-                            train_sig_names=['ppg_waveform', 'respiratory_waveform'],
-                            pred_signals=self.signals,
-                            method=self.resolved_model,
-                            min_t_hr=CALC_HR_MIN_T,
-                            min_t_rr=CALC_RR_MIN_T,
-                            can_provide_confidence=True)
+    return assemble_results(
+      sig=sig_ds,
+      conf=conf_ds,
+      live=live,
+      fps=fps,
+      pred_signals=list(self.signals),
+      method_name=self.resolved_model,
+      can_provide_confidence=True
+    )
+
   def process_api_batch(
       self,
       batch: int,
@@ -240,7 +257,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       end: int = None,
       fps: float = None,
       global_parse: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[dict, dict, np.ndarray, np.ndarray]:
     """Process a batch of frames with the VitalLens API.
 
     Args:
@@ -257,8 +274,8 @@ class VitalLensRPPGMethod(RPPGMethod):
       global_parse: Flag that indicates whether video has already been parsed.
     Returns:
       Tuple of
-       - sig: Estimated signals. Shape (n_sig, n_frames)
-       - conf: Estimation confidences. Shape (n_sig, n_frames)
+       - sig: Dict of estimated signals {name: array}. Each array has shape (n_frames,).
+       - conf: Dict of estimation confidences {name: array}. Each array has shape (n_frames,).
        - live: Liveness estimation. Shape (n_frames,)
        - idxs: Indices in inputs that were processed. Shape (n_frames)
     """
@@ -309,7 +326,6 @@ class VitalLensRPPGMethod(RPPGMethod):
     if frames_ds.shape[0] != expected_n or idxs.shape[0] != expected_n:
       raise ValueError("Unexpected number of frames returned. Try to set `override_global_parse` to `True` or `False`.")
     # Prepare API header and payload
-    # -- by not sending fps information, ask endpoint not to do any processing
     headers = {}
     if self.api_key:
       headers["x-api-key"] = self.api_key
@@ -338,31 +354,35 @@ class VitalLensRPPGMethod(RPPGMethod):
         raise VitalLensAPIError(f"API Error: {response_body['message']}")
       else:
         raise Exception(f"Error {response.status_code}: {response_body['message']}")
-    # Parse response
-    sig_ds = np.stack([
-      np.asarray(response_body["vital_signs"]["ppg_waveform"]["data"]),
-      np.asarray(response_body["vital_signs"]["respiratory_waveform"]["data"]),
-    ], axis=0)
-    conf_ds = np.stack([
-      np.asarray(response_body["vital_signs"]["ppg_waveform"]["confidence"]),
-      np.asarray(response_body["vital_signs"]["respiratory_waveform"]["confidence"]),
-    ], axis=0)
+    # Dynamic dict parsing
+    api_vitals = response_body.get("vital_signs", {})
+    sig_ds = {}
+    conf_ds = {}
+    for name, obj in api_vitals.items():
+      if 'data' in obj:
+        sig_ds[name] = np.asarray(obj['data'])
+        c_val = obj.get('confidence')
+        if c_val is not None:
+          conf_ds[name] = np.asarray(c_val)
+        else:
+          conf_ds[name] = np.zeros_like(sig_ds[name])
     live_ds = np.asarray(response_body["face"]["confidence"])
     if self.op_mode == Mode.BURST:
       self.state = np.asarray(response_body["state"]["data"], dtype=np.float32)
     return sig_ds, conf_ds, live_ds, idxs
+
   def postprocess(
       self,
       sig: np.ndarray,
       fps: float,
-      type: str = 'ppg',
+      type: str = 'ppg_waveform',
       filter: bool = True
     ) -> np.ndarray:
     """Apply filters to the estimated signal. 
     Args:
       sig: The estimated signal. Shape (n_frames,)
       fps: The rate at which video was sampled. Scalar
-      type: The signal type - either 'pulse' or 'resp'.
+      type: The signal type - either 'ppg_waveform' or 'respiratory_waveform'.
       filter: Whether to apply filters
     Returns:
       x: The filtered signal. Shape (n_frames,)
@@ -370,10 +390,10 @@ class VitalLensRPPGMethod(RPPGMethod):
     n_frames = sig.shape[-1]
     if filter:
       # Get filter parameters
-      if type == 'ppg':
+      if type == 'ppg_waveform':
         size = moving_average_size_for_hr_response(fps)
         Lambda = detrend_lambda_for_hr_response(fps)
-      elif type == 'resp':
+      elif type == 'respiratory_waveform':
         size = moving_average_size_for_rr_response(fps)
         Lambda = detrend_lambda_for_rr_response(fps)
       else:
@@ -381,13 +401,11 @@ class VitalLensRPPGMethod(RPPGMethod):
       if sig.shape[-1] < 4 * API_MAX_FRAMES:
         # Detrend only for shorter videos for performance reasons
         sig = detrend(sig, Lambda)
-      # Moving average
       sig = moving_average(sig, size)
-      # Standardize
       sig = standardize(sig)
-    # Return
     assert sig.shape == (n_frames,)
     return sig
+
   def reset(self):
     """Reset"""
     if self.op_mode == Mode.BURST:
