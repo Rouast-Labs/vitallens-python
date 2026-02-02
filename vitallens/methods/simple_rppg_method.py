@@ -128,7 +128,7 @@ class SimpleRPPGMethod(RPPGMethod):
     sig = interpolate_filtered(t_in=np.arange(inputs_shape[0])[0::ds_factor],
                                s_in=sig_ds,
                                t_out=np.arange(inputs_shape[0]),
-                               axis=1, extrapolate=True)
+                               axis=0, extrapolate=True)
     # Filter (n_frames,)
     sig = self.pulse_filter(sig, fps)
     # Package into dict

@@ -93,28 +93,20 @@ def assemble_results(
     vital_type = meta.get('type')
     unit = meta.get('unit', '')
     display_name = meta.get('display_name', name)
-    aggregation = meta.get('aggregation')
     # --- CASE A: PROVIDED ---
     if vital_type == 'provided':
       if name in sig:
-        if aggregation is None:
-          # Waveform
-          out_data[name] = sig[name]
-          out_conf[name] = conf.get(name, np.zeros_like(sig[name]))
-          out_note[name] = f"Estimate of the {display_name} using {method_name}{conf_txt_wave}"
-        else:
-          # Scalar (return aggregated global value)
-          out_data[name] = np.nanmean(sig[name])
-          out_conf[name] = np.nanmean(conf.get(name, 0))
-          out_note[name] = f"Global estimate of {display_name} using {method_name}{conf_txt_scalar}"
+        out_data[name] = sig[name]
+        out_conf[name] = conf.get(name, np.zeros_like(sig[name]))
+        out_note[name] = f"Estimate of the {display_name} using {method_name}{conf_txt_wave}"
         out_unit[name] = unit
-      else:
-        pass
     # --- CASE B: DERIVED (calculated locally) ---
     elif vital_type == 'derived':
-      source = meta['source_signal']
-      min_t = meta['min_t']
-      calc_func = meta['func']
+      deriv = meta.get('derivation')
+      if not deriv: continue
+      source = deriv['source_signal']
+      min_t = deriv['window']['required']
+      calc_func = deriv['func']
       if source in sig and sig_t >= min_t:
         try:
           # Execute the function defined in prpy
@@ -124,7 +116,7 @@ def assemble_results(
           else:
             val_est = val
             conf_src = conf.get(source, np.zeros_like(sig[source]))
-            if aggregation == 'min':
+            if deriv.get('confidenceAggregation') == 'min':
               conf_est = np.nanmin(conf_src)
             else:
               conf_est = np.nanmean(conf_src)
@@ -161,6 +153,8 @@ def estimate_rolling_vitals(
     signals_available: The signals supported by the used rPPG method
     fps: The frame rate
     video_duration_s: The duration
+  Returns:
+    None. The results are appended to `vital_signs_dict` in place.
   """
   # Helper to standardize output format
   def _add_result(name, unit, display_name, val, c):
@@ -174,56 +168,67 @@ def estimate_rolling_vitals(
         'data': val, 'unit': unit, 'confidence': c,
         'note': f'Rolling estimate of {display_name} with frame-wise confidence.'
       }
-
-  target_vitals = signals_available.intersection(VITAL_REGISTRY.keys())
+  # Identify relevant registry keys based on model availability
+  target_vitals = set()
+  for key, meta in VITAL_REGISTRY.items():
+    if key in signals_available:
+      target_vitals.add(key)
+    elif 'model_aliases' in meta:
+      for alias in meta['model_aliases']:
+        if alias in signals_available:
+          target_vitals.add(key)
+          break
   for name in target_vitals:
     meta = VITAL_REGISTRY[name]
-    # Validation checks
-    if 'max_t' not in meta:
+    if 'derivation' not in meta:
       continue
-    max_t = meta['max_t']
-    if video_duration_s <= max_t:
+    deriv = meta['derivation']
+    if video_duration_s <= deriv['window']['required']:
       continue
-    v_type = meta.get('type')
-    source_name = name if v_type == 'provided' else meta.get('source_signal')
+    source_name = deriv.get('source_signal')
     if source_name not in data:
       continue
     # Window parameters
-    w_size = int(max_t * fps)
-    overlap = int(w_size * 7 / 8)
+    min_w_size = int(deriv['window']['required'] * fps)
+    max_w_size = int(deriv['window']['size'] * fps)
+    overlap = int(max_w_size * 7 / 8)
     output_key = f"rolling_{name}"
     display_name = meta.get('display_name', name)
     val_roll = np.nan
-    conf_roll = np.nan
+    conf_roll = None
     # Calculation
     try:
-      if v_type == 'derived':
-        calc_func = meta.get('func')
-        res = calc_func(
-          data[source_name], fps, conf.get(source_name),
-          scope=EScope.ROLLING,
-          window_size=w_size,
-          overlap=overlap
-        )
-        val_roll = res[0] if isinstance(res, tuple) else res
-      elif v_type == 'provided':
-        val_roll = rolling_calc(
-          x=data[source_name],
-          calc_fn=np.nanmean,
-          min_window_size=w_size, max_window_size=w_size, overlap=overlap
-        )
+      calc_func = deriv.get('func')
+      res = calc_func(
+        data[source_name], fps, conf.get(source_name),
+        scope=EScope.ROLLING,
+        min_window_size=min_w_size,
+        max_window_size=max_w_size,
+        window_size=max_w_size,
+        overlap=overlap
+      )
+      if isinstance(res, tuple):
+        val_roll, conf_roll = res
+      else:
+        val_roll = res
     except Exception:
       continue
-    # Confidence
-    agg_func = np.nanmin if meta.get('aggregation') == 'min' else np.nanmean
-    try:
-      c_src = conf.get(source_name, np.zeros_like(data[source_name]))
-      conf_roll = rolling_calc(
-        x=c_src,
-        calc_fn=lambda x: agg_func(x, axis=-1),
-        min_window_size=w_size, max_window_size=w_size, overlap=overlap
-      )
-    except Exception:
-      pass
+    # Confidence aggregation
+    if conf_roll is None:
+      agg_method = deriv.get('confidenceAggregation', 'mean')
+      agg_func = np.nanmin if agg_method == 'min' else np.nanmean
+      try:
+        c_src = conf.get(source_name, np.zeros_like(data[source_name]))
+        conf_roll = rolling_calc(
+          x=c_src,
+          calc_fn=lambda x: agg_func(x, axis=-1),
+          min_window_size=max_w_size, max_window_size=max_w_size, overlap=overlap
+        )
+      except Exception:
+        conf_roll = np.nan
+    # Final check for None/NaN fallback
+    if conf_roll is None or (isinstance(conf_roll, float) and np.isnan(conf_roll)):
+      conf_roll = np.nan
+
     # Add to results
     _add_result(output_key, meta['unit'], display_name, val_roll, conf_roll)

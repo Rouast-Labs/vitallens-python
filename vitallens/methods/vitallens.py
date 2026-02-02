@@ -24,12 +24,11 @@ import math
 import numpy as np
 from prpy.numpy.core import standardize
 from prpy.numpy.face import get_roi_from_det
-from prpy.numpy.filters import detrend, moving_average
+from prpy.numpy.filters import detrend, detrend_lambda_for_cutoff
+from prpy.numpy.filters import moving_average, moving_average_size_for_response
 from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
-from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
-from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
-from prpy.numpy.physio import VITAL_ALIAS_MAP
+from prpy.numpy.physio import VITAL_REGISTRY, get_vital_key_from_alias
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
@@ -68,12 +67,11 @@ def _resolve_model_config(
     response = requests.get(API_RESOLVE_URL, headers=headers, params=params, proxies=proxies)
     response.raise_for_status()
     data = response.json()
-    # Prepare a clean config dictionary from the API response
     resolved_config = data['config']
     resolved_config['model'] = data['resolved_model']
     if 'supported_vitals' in resolved_config:
       vitals = resolved_config.pop('supported_vitals')
-      resolved_config['signals'] = {VITAL_ALIAS_MAP.get(c, c) for c in vitals}
+      resolved_config['signals'] = {get_vital_key_from_alias(c) for c in vitals}
     return resolved_config
   except requests.exceptions.HTTPError as e:
     error_msg = f"Failed to resolve model config: Status {e.response.status_code}"
@@ -375,36 +373,40 @@ class VitalLensRPPGMethod(RPPGMethod):
       self,
       sig: np.ndarray,
       fps: float,
-      type: str = 'ppg_waveform',
+      type: str,
       filter: bool = True
     ) -> np.ndarray:
     """Apply filters to the estimated signal. 
     Args:
       sig: The estimated signal. Shape (n_frames,)
       fps: The rate at which video was sampled. Scalar
-      type: The signal type - either 'ppg_waveform' or 'respiratory_waveform'.
+      type: The vital registry key (e.g. 'ppg_waveform').
       filter: Whether to apply filters
     Returns:
       x: The filtered signal. Shape (n_frames,)
     """
     n_frames = sig.shape[-1]
-    if filter:
-      # Get filter parameters
-      if type == 'ppg_waveform':
-        size = moving_average_size_for_hr_response(fps)
-        Lambda = detrend_lambda_for_hr_response(fps)
-      elif type == 'respiratory_waveform':
-        size = moving_average_size_for_rr_response(fps)
-        Lambda = detrend_lambda_for_rr_response(fps)
-      else:
-        raise ValueError(f"Type {type} not implemented!")
-      if sig.shape[-1] < 4 * API_MAX_FRAMES:
-        # Detrend only for shorter videos for performance reasons
-        sig = detrend(sig, Lambda)
-      sig = moving_average(sig, size)
-      sig = standardize(sig)
-    assert sig.shape == (n_frames,)
-    return sig
+    meta = VITAL_REGISTRY.get(type)
+    if not meta or not filter:
+      return sig
+    proc = meta.get('processing')
+    if not proc:
+      return sig
+    constraints = proc.get('constraints', {})
+    fmin = constraints.get('fmin')
+    fmax = constraints.get('fmax')
+    processed_sig = sig.copy()
+    if proc.get('method') == 'detrend' and fmin:
+      if processed_sig.shape[-1] < 4 * API_MAX_FRAMES:
+        lambda_val = detrend_lambda_for_cutoff(fps, fmin)
+        processed_sig = detrend(processed_sig, lambda_val)
+    if fmax:
+      size = moving_average_size_for_response(fps, fmax)
+      processed_sig = moving_average(processed_sig, size)
+    if proc.get('standardize', False):
+      processed_sig = standardize(processed_sig)
+    assert processed_sig.shape == (n_frames,)
+    return processed_sig
 
   def reset(self):
     """Reset"""
