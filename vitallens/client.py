@@ -208,8 +208,9 @@ class VitalLens:
       # Parse vital signs results
       for name in self.rppg.signals:
         if name in data and name in unit and name in conf and name in note:
+          is_scalar = np.ndim(data[name]) == 0
           face_result['vital_signs'][name] = {
-            ('data' if 'waveform' in name or 'rolling' in name else 'value'): data[name],
+            ('value' if is_scalar else 'data'): data[name],
             'unit': unit[name],
             'confidence': conf[name],
             'note': note[name]
