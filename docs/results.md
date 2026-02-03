@@ -19,8 +19,8 @@ Each face entry follows this structure. Note that strict types (like `np.ndarray
 [
   {
     "face": {
-      "coordinates": "Array (N_frames, 4) - [x, y, w, h] per frame",
-      "confidence": "Array (N_frames,) - Face detection confidence (0 to 1)",
+      "coordinates": [[247, 52, 444, 332], ...],
+      "confidence": [0.6115, 0.9207, 0.9183, ...],
       "note": "Face detection coordinates..."
     },
     "vital_signs": {
