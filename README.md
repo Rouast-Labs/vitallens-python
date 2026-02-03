@@ -50,7 +50,7 @@ print("Heart Rate:", results[0]['vital_signs']['heart_rate']['value'])
 
 ### Get High-Fidelity Accuracy (with API Key)
 
-To get improved accuracy and advanced metrics like **Respiratory Rate** and **HRV**, use the `VITALLENS` method. You can get a free key from the [API Dashboard](https://www.rouast.com/api).
+To get improved accuracy and advanced metrics like **Respiratory Rate** and **HRV**, use the `vitallens` method. You can get a free key from the [API Dashboard](https://www.rouast.com/api).
 
 ```python
 from vitallens import VitalLens, Method
