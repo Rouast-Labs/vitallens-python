@@ -41,7 +41,7 @@ logging.getLogger().setLevel("INFO")
 class VitalLens:
   def __init__(
       self, 
-      method: Union[Method, str] = Method.VITALLENS,
+      method: Union[Method, str] = "vitallens",
       mode: Mode = Mode.BATCH,
       api_key: str = None,
       proxies: dict = None,
@@ -54,7 +54,15 @@ class VitalLens:
       export_to_json: bool = True,
       export_dir: str = "."
     ):
-    """Initialisation. Loads face detection model if necessary.
+    """Initialises the client. Loads face detection model if necessary.
+
+    You can choose from several rPPG `method`:
+
+      * `vitallens`: Recommended. Uses the VitalLens API and automatically selects the best model for your API key.
+      * `vitallens-2.0`: Force the use of the VitalLens 2.0 model.
+      * `vitallens-1.0`: Force the use of the VitalLens 1.0 model.
+      * `vitallens-1.1`: Force the use of the VitalLens 1.1 model.
+      * `pos`, `chrom`, `g`: Classic rPPG algorithms that run locally and do not require an API key.
 
     Args:
       method: The rPPG method to be used for inference.
@@ -110,7 +118,7 @@ class VitalLens:
       override_global_parse: bool = None,
       export_filename: str = None
     ) -> list:
-    """Run rPPG inference.
+    """Runs rPPG inference from a video file or in-memory video data.
 
     Args:
       video: The video to analyze. Either a np.ndarray of shape (n_frames, h, w, 3)
@@ -130,6 +138,7 @@ class VitalLens:
       export_filename: Filename for json export if applicable.
     Returns:
       result: Analysis results as a list of faces in the following format:
+
         [
           {
             'face': {
@@ -146,7 +155,7 @@ class VitalLens:
               },
               <other vitals...>
             },
-            "message": <Message about estimates>
+            'message': <Message about estimates>
           },
           { 
             <same structure for face 2 if present>
@@ -228,5 +237,5 @@ class VitalLens:
         json.dump(convert_ndarray_to_list(results), f, indent=4)
     return results
   def reset(self):
-    """Reset"""
+    """Resets the client state if applicable."""
     self.rppg.reset()
