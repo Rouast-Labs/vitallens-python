@@ -18,6 +18,7 @@
 `vitallens` is the official Python client for the [**VitalLens API**](https://www.rouast.com/api/), a service for estimating physiological vital signs like heart rate (HR), respiratory rate (RR), and heart rate variability (HRV) from facial video.
 
 The library provides:
+
 - **High-Fidelity Accuracy:** A simple interface to the VitalLens API for state-of-the-art estimation (heart rate, respiratory rate, HRV).
 - **Local Fallbacks:** Implementations of classic rPPG algorithms (`pos`, `chrom`, `g`) for local, API-free processing.
 - **Flexible Input:** Support for video files and in-memory `np.ndarray`.
