@@ -1,40 +1,127 @@
-# Example ways to test `vitallens`
+# Examples & Usage Recipes
 
-## Live test with webcam in real-time
+<!-- mkdocs-start -->
+The `examples/` folder contains sample scripts and video data to help you evaluate `vitallens` against ground truth data, run it in Docker, or integrate it into your own pipeline.
 
-Test `vitallens` in real-time with your webcam using the script `live.py`.
-This uses `Mode.BURST` to update results continuously (approx. every 2 seconds for `Method.VITALLENS`).
-Some options are available:
+## Evaluation Script (`test.py`)
 
-- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
-- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
+This directory contains sample scripts and video data to help you evaluate `vitallens` against ground truth data, run it in Docker, or integrate it into your own pipeline.
 
-May need to install requirements first: `pip install opencv-python`
+### Included Sample Data
+We have included two videos with synchronized ground truth data:
 
+* **`sample_video_1.mp4`**: Includes ground truth for PPG, ECG, Respiratory Waveform, Blood Pressure, SpO2, Heart Rate, and HRV.
+* **`sample_video_2.mp4`**: Sourced from the [VitalVideos](http://vitalvideos.org) dataset. Includes ground truth for PPG.
+
+### Usage
+
+First, install the visualization dependencies:
+```bash
+pip install matplotlib pandas
 ```
-python examples/live.py --method=VITALLENS --api_key=YOUR_API_KEY
+
+Run the comparison using the VitalLens API:
+
+```bash
+python examples/test.py \
+  --method=vitallens \
+  --api_key="YOUR_API_KEY" \
+  --video_path=examples/sample_video_2.mp4 \
+  --vitals_path=examples/sample_vitals_2.csv
 ```
 
-## Sample videos with ground truth labels
+You can also benchmark local methods (no API key required):
 
-In this folder, you can find two sample videos to test `vitallens` on.
-Each video has ground truth labels recorded with gold-standard medical equipment.
-
-- `sample_video_1.mp4` which has ground truth labels for PPG Waveform (`ppg`), ECG Waveform (`ecg`), Respiratory Waveform (`resp`), Blood Pressure (`sbp` and `dbp`), Blood Oxygen (`spo2`), Heart Rate (`hr_ecg` - derived from ECG and `hr_ppg` - derived from PPG), Heart Rate Variability (`hrv_sdnn_ecg`), and Respiratory Rate (`rr`).
-- `sample_video_2.mp4` which has ground truth labels for PPG Waveform (`ppg`). This sample with id `3cf596e2bcc34862abc89bd2eca4a985` is kindly provided by the [VitalVideos](http://vitalvideos.org) dataset.
-
-There is a test script in `test.py` which uses `Mode.BATCH` to run vitals estimation and plot the predictions against the ground truth labels. This uses `vitallens.Mode.BATCH` mode.
-Some options are available:
-
-- `method`: Choose from [`VITALLENS`, `POS`, `G`, `CHROM`] (Default: `VITALLENS`)
-- `video_path`: Path to video (Default: `examples/sample_video_1.mp4`)
-- `vitals_path`: Path to gold-standard vitals (Default: `examples/sample_vitals_1.csv`)
-- `api_key`: Pass your API Key. Required if using `method=VITALLENS`.
-
-May need to install requirements first: `pip install matplotlib pandas`
-
-For example, to reproduce the results from the banner image on the [VitalLens API Webpage](https://www.rouast.com/api/):
-
+```bash
+python examples/test.py --method=POS --video_path=examples/sample_video_1.mp4
 ```
-python examples/test.py --method=VITALLENS --video_path=examples/sample_video_2.mp4 --vitals_path=examples/sample_vitals_2.csv --api_key=YOUR_API_KEY
+
+## Integration Recipes
+
+Copy-paste patterns for common integration scenarios.
+
+### Processing a Video File
+
+The simplest way to use the library.
+
+```python
+from vitallens import VitalLens, Method
+
+# Initialize
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
+
+# Run inference
+results = vl("path/to/video.mp4")
+
+# Access results
+print("Heart Rate:", results[0]['vital_signs']['heart_rate']['value'])
+```
+
+### Processing Raw Frames (Numpy/OpenCV)
+
+Use this if you are already reading video frames with OpenCV or `imageio`.
+
+```python
+import cv2
+from vitallens import VitalLens, Method
+
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
+
+# 1. Read video into a list of frames
+frames = []
+cap = cv2.VideoCapture("video.mp4")
+fps = cap.get(cv2.CAP_PROP_FPS)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret: break
+    # Convert BGR (OpenCV default) to RGB
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frames.append(frame)
+cap.release()
+
+# 2. Convert to numpy array (N, H, W, 3)
+import numpy as np
+video_arr = np.array(frames)
+
+# 3. Run inference (must provide fps explicitly)
+results = vl(video_arr, fps=fps)
+```
+
+## Running with Docker
+
+If you encounter dependency issues (e.g., with `onnxruntime` or `ffmpeg`), you can run the example scripts inside our Docker container.
+
+**1. Build the image**
+
+```bash
+docker build -t vitallens .
+```
+
+**2. Run the evaluation**
+
+```bash
+docker run vitallens \
+  --api_key "YOUR_API_KEY" \
+  --vitals_path "examples/sample_vitals_2.csv" \
+  --video_path "examples/sample_video_2.mp4" \
+  --method "vitallens"
+```
+
+**3. Extract the plot**
+Since the plot cannot display inside the container, copy it out after running:
+
+```bash
+docker cp <container_id>:/app/results.png .
+```
+
+## Real-time Webcam Demo (`live.py`)
+
+> **Note:** This script is experimental and optimized for testing the `Mode.BURST` functionality.
+
+This script opens your webcam and streams frames to the API in chunks.
+
+```bash
+pip install opencv-python
+python examples/live.py --method=vitallens --api_key=YOUR_API_KEY
 ```
