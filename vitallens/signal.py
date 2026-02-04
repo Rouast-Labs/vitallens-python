@@ -84,8 +84,8 @@ def assemble_results(
   sig_t = sig_len / fps if fps > 0 else 0
   out_data, out_unit, out_conf, out_note = {}, {}, {}, {}
   # Standard confidence strings
-  conf_txt_scalar = ', with confidence between 0 and 1.' if can_provide_confidence else '.'
-  conf_txt_wave = ', with frame-wise confidence between 0 and 1.' if can_provide_confidence else '.'
+  conf_txt_scalar = ', with confidence level.' if can_provide_confidence else '.'
+  conf_txt_wave = ', with frame-wise confidence levels.' if can_provide_confidence else '.'
   for name in pred_signals:
     meta = VITAL_REGISTRY.get(name)
     if not meta:
@@ -164,9 +164,11 @@ def estimate_rolling_vitals(
         'note': f'Video too short or signal too noisy for rolling {display_name}.'
       }
     else:
+      val = np.round(val, 8)
+      c = np.round(c, 4)
       vital_signs_dict[name] = {
         'data': val, 'unit': unit, 'confidence': c,
-        'note': f'Rolling estimate of {display_name} with frame-wise confidence.'
+        'note': f'Rolling estimate of {display_name} with frame-wise confidence levels.'
       }
   # Identify relevant registry keys based on model availability
   target_vitals = set()
