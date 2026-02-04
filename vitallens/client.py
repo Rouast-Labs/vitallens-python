@@ -204,12 +204,14 @@ class VitalLens:
         override_fps_target=override_fps_target,
         override_global_parse=override_global_parse
       )
+      # Rounding
+      live = np.round(live, 4)
       # Parse face results
       face_result = {
         'face': {
           'coordinates': face,
           'confidence': live,
-          'note': "Face detection coordinates for this face, along with live confidence levels."
+          'note': "Face detection coordinates for this face with live confidence levels."
         },
         'vital_signs': {},
         'message': DISCLAIMER
@@ -218,10 +220,14 @@ class VitalLens:
       for name in self.rppg.signals:
         if name in data and name in unit and name in conf and name in note:
           is_scalar = np.ndim(data[name]) == 0
+          val = np.round(data[name], 2 if is_scalar else 8)
+          c_val = np.round(conf[name], 4)
+          if is_scalar:
+            val, c_val = float(val), float(c_val)
           face_result['vital_signs'][name] = {
-            ('value' if is_scalar else 'data'): data[name],
+            ('value' if is_scalar else 'data'): val,
             'unit': unit[name],
-            'confidence': conf[name],
+            'confidence': c_val,
             'note': note[name]
           }
       if self.estimate_rolling_vitals:
