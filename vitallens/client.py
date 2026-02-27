@@ -235,6 +235,9 @@ class VitalLens:
           vital_signs_dict=face_result['vital_signs'], data=data, conf=conf,
           signals_available=set(self.rppg.signals), fps=fps, video_duration_s=video_duration_s)
       results.append(face_result)
+      for res in results:
+        res['fps'] = fps
+        res['n'] = inputs_shape[0]
     # Export to json
     if self.export_to_json:
       os.makedirs(self.export_dir, exist_ok=True)
