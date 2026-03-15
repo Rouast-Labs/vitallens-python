@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2026 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,34 +20,32 @@
 
 import base64
 import concurrent.futures
+import gzip
 import math
 import numpy as np
-from prpy.numpy.core import standardize
 from prpy.numpy.face import get_roi_from_det
-from prpy.numpy.filters import detrend, detrend_lambda_for_cutoff
-from prpy.numpy.filters import moving_average, moving_average_size_for_response
 from prpy.numpy.image import probe_image_inputs, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
-from prpy.numpy.physio import VITAL_REGISTRY, get_vital_key_from_alias
 from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
 import requests
 import os
 from typing import Union, Tuple
+import vitallens_core as vc
 
-from vitallens.constants import API_MAX_FRAMES, API_URL, API_OVERLAP, API_RESOLVE_URL
-from vitallens.enums import Mode
+from vitallens.constants import API_MAX_FRAMES, API_OVERLAP
+from vitallens.constants import API_FILE_URL, API_STREAM_URL, API_RESOLVE_URL
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
-from vitallens.signal import reassemble_from_windows, assemble_results
+from vitallens.signal import reassemble_from_windows
 from vitallens.utils import check_faces_in_roi
 
 def _resolve_model_config(
     api_key: str,
     model_name: str,
     proxies: dict = None
-  ) -> dict:
+  ) -> vc.SessionConfig:
   """Calls the /resolve-model endpoint to get the correct model config.
   
   Args:
@@ -55,7 +53,7 @@ def _resolve_model_config(
     model_name: The requested model name (e.g., 'vitallens', 'vitallens-2.0')
     proxies: Dictionary mapping protocol to the URL of the proxy
   Returns:
-    resolved_config: The config of the resolved model 
+    resolved_config: The SessionConfig of the resolved model 
   """
   headers = {}
   if api_key:
@@ -67,12 +65,16 @@ def _resolve_model_config(
     response = requests.get(API_RESOLVE_URL, headers=headers, params=params, proxies=proxies)
     response.raise_for_status()
     data = response.json()
-    resolved_config = data['config']
-    resolved_config['model'] = data['resolved_model']
-    if 'supported_vitals' in resolved_config:
-      vitals = resolved_config.pop('supported_vitals')
-      resolved_config['signals'] = {get_vital_key_from_alias(c) for c in vitals}
-    return resolved_config
+    config_dict = data['config']
+    return vc.SessionConfig(
+      model_name=data['resolved_model'],
+      supported_vitals=config_dict.get('supported_vitals', []),
+      fps_target=float(config_dict.get('fps_target', 30.0)),
+      input_size=int(config_dict.get('input_size', 40)),
+      n_inputs=int(config_dict.get('n_inputs', 4)),
+      roi_method=config_dict.get('roi_method', 'upper_body_cropped'),
+      return_waveforms=['ppg_waveform', 'respiratory_waveform']
+    )
   except requests.exceptions.HTTPError as e:
     error_msg = f"Failed to resolve model config: Status {e.response.status_code}"
     try:
@@ -92,7 +94,6 @@ class VitalLensRPPGMethod(RPPGMethod):
   """RPPG method using the VitalLens API for inference"""
   def __init__(
       self,
-      mode: Mode,
       api_key: str,
       requested_model_name: str,
       proxies: dict = None
@@ -100,43 +101,39 @@ class VitalLensRPPGMethod(RPPGMethod):
     """Initialize the `VitalLensRPPGMethod`
     
     Args:
-      mode: The operation mode
       api_key: The API key
       requested_model_name: The requested VitalLens model name,
       proxies: Dictionary mapping protocol to the URL of the proxy
     """
-    super(VitalLensRPPGMethod, self).__init__(mode=mode)
+    super(VitalLensRPPGMethod, self).__init__()
     
     if proxies is None and (api_key is None or api_key == ''):
       raise VitalLensAPIKeyError()
     self.api_key = api_key
     self.proxies = proxies
 
-    # Resolve model config
-    resolved_config = _resolve_model_config(api_key=api_key, model_name=requested_model_name, proxies=proxies)
-    self.parse_config(resolved_config)
+    self.session_config = _resolve_model_config(api_key=api_key, model_name=requested_model_name, proxies=proxies)
+    self.parse_config(self.session_config)
 
-    self.resolved_model = resolved_config['model']
+    self.resolved_model = self.session_config.model_name
     self.requested_model_name = requested_model_name if requested_model_name != "vitallens" else None
 
-    if mode == Mode.BURST:
-      self.state = None
-      self.input_buffer = None
-
-  def parse_config(self, config: dict):
+  def parse_config(self, config: vc.SessionConfig):
     """Set properties based on the config.
     
     Args:
-      config: The method's config dict
+      config: The method's SessionConfig
     """
     super(VitalLensRPPGMethod, self).parse_config(config=config)
-    self.n_inputs = int(config['n_inputs'])
-    self.input_size = int(config['input_size'])
-    self.signals = config.get('signals', set())
+    self.n_inputs = config.n_inputs
+    self.input_size = config.input_size
+    vitals = [vc.get_vital_info(v).id for v in config.supported_vitals if vc.get_vital_info(v) is not None]
+    waveforms = config.return_waveforms or []
+    self.signals = set(vitals + waveforms)
     self.est_window_length = 0
     self.est_window_overlap = 0
 
-  def __call__(
+  def infer_batch(
       self,
       inputs: Union[np.ndarray, str],
       faces: np.ndarray,
@@ -156,16 +153,13 @@ class VitalLensRPPGMethod(RPPGMethod):
         If None, choose based on video.
     Returns:
       Tuple of
-       - out_data: The estimated data/value for each signal.
-       - out_unit: The estimation unit for each signal.
-       - out_conf: The estimation confidence for each signal.
-       - out_note: An explanatory note for each signal.
+       - sig_dict: A dictionary of the estimated signals.
+       - conf_dict: A dictionary of the estimated confidences.
        - live: The face live confidence. Shape (n_frames,)
     """
     inputs_shape, fps, video_issues = probe_image_inputs(inputs, fps=fps)
-    # Check the number of frames to be processed
-    inputs_n = inputs_shape[0]
     fps_target = override_fps_target if override_fps_target is not None else self.fps_target
+    inputs_n = inputs_shape[0]
     expected_ds_factor = max(round(fps / fps_target), 1)
     expected_ds_n = math.ceil(inputs_n / expected_ds_factor)
     # Check if we should parse the video globally
@@ -219,29 +213,60 @@ class VitalLensRPPGMethod(RPPGMethod):
       sig = interpolate_filtered(t_in=idxs, s_in=rec_sig, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
       conf = interpolate_filtered(t_in=idxs, s_in=rec_conf, t_out=np.arange(inputs_n), axis=1, extrapolate=True)
       # Unpack
-      sig_ds = dict(zip(keys, sig))
-      conf_ds = dict(zip(keys, conf))
+      sig_dict = dict(zip(keys, sig))
+      conf_dict = dict(zip(keys, conf))
     else:
-      sig_ds, conf_ds = {}, {}
+      sig_dict, conf_dict = {}, {}
     # Aggregate liveness
     live_stacked = np.array(live_results)[:, np.newaxis, :]
     rec_live, _ = reassemble_from_windows(x=live_stacked, idxs=idxs_results)
     live = interpolate_filtered(t_in=idxs, s_in=rec_live[0], t_out=np.arange(inputs_n), axis=0, extrapolate=True)
-    # Postprocess
-    if self.op_mode == Mode.BATCH:
-      for key in sig_ds:
-        if 'waveform' in key:
-          sig_ds[key] = self.postprocess(sig_ds[key], fps, type=key)
     # Assemble and return the results
-    return assemble_results(
-      sig=sig_ds,
-      conf=conf_ds,
-      live=live,
-      fps=fps,
-      pred_signals=list(self.signals),
-      method_name=self.resolved_model,
-      can_provide_confidence=True
-    )
+    return sig_dict, conf_dict, live
+
+  def infer_stream(self, frames: np.ndarray, fps: float, state=None):
+    """TODO"""
+    headers = {
+      "Content-Type": "application/octet-stream",
+      "X-Encoding": "gzip"
+    }
+    if self.api_key:
+      headers["x-api-key"] = self.api_key
+    origin = os.getenv('VITALLENS_API_ORIGIN', 'vitallens-python')
+    headers["X-Origin"] = origin
+    if self.requested_model_name:
+      headers["X-Model"] = self.requested_model_name
+    if state is not None:
+      state_bytes = np.asarray(state, dtype=np.float32).tobytes()
+      headers["X-State"] = base64.b64encode(state_bytes).decode('utf-8')
+
+    # Compress the raw video bytes
+    raw_rgb_bytes = frames.tobytes()
+    compressed_data = gzip.compress(raw_rgb_bytes)
+
+    # Post the binary payload
+    response = requests.post(API_STREAM_URL, headers=headers, data=compressed_data, proxies=self.proxies)
+
+    if response.status_code != 200:
+      response_body = response.json()
+      logging.error(f"Error {response.status_code}: {response_body.get('message')}")
+      if response.status_code == 403: raise VitalLensAPIKeyError()
+      elif response.status_code == 429: raise VitalLensAPIQuotaExceededError()
+      else: raise VitalLensAPIError(f"API Error: {response_body.get('message')}")
+
+    response_body = response.json()
+
+    api_waveforms = response_body.get("waveforms", {})
+    sig_dict, conf_dict = {}, {}
+    for name, obj in api_waveforms.items():
+      if 'data' in obj:
+        sig_dict[name] = np.asarray(obj['data'])
+        conf_dict[name] = np.asarray(obj.get('confidence', [1.0] * frames.shape[0]))
+
+    live = np.asarray(response_body.get("face", {}).get("confidence", [1.0] * frames.shape[0]))
+    new_state = response_body.get("state", {}).get("data")
+
+    return sig_dict, conf_dict, live, new_state
 
   def process_api_batch(
       self,
@@ -301,16 +326,6 @@ class VitalLensRPPGMethod(RPPGMethod):
       else:
         idxs = list(range(0, inputs_shape[0], ds_factor))
     else:
-      # Buffer inputs for burst mode
-      if self.op_mode == Mode.BURST:
-        # Inputs in burst mode are always np.ndarray
-        if self.state is not None:
-          # State has been initialized
-          assert self.input_buffer is not None
-          if inputs.shape[1:] != self.input_buffer.shape[1:]:
-            raise ValueError("In burst mode, input dimensions must be consistent.")
-          inputs = np.concatenate([self.input_buffer, inputs], axis=0)
-        self.input_buffer = inputs[-(self.n_inputs-1):]
       # Inputs have not been parsed globally. Parse the inputs
       frames_ds, _, _, ds_factor, idxs = parse_image_inputs(
         inputs=inputs, fps=fps, roi=roi, target_size=self.input_size, target_fps=fps_target,
@@ -320,7 +335,6 @@ class VitalLensRPPGMethod(RPPGMethod):
     # Make sure we have the correct number of frames
     idxs = np.asarray(idxs)
     expected_n = math.ceil(((end-start) if start is not None and end is not None else inputs_shape[0]) / ds_factor)
-    if (self.op_mode == Mode.BURST and self.state is not None): expected_n += (self.n_inputs - 1)
     if frames_ds.shape[0] != expected_n or idxs.shape[0] != expected_n:
       raise ValueError("Unexpected number of frames returned. Try to set `override_global_parse` to `True` or `False`.")
     # Prepare API header and payload
@@ -331,15 +345,8 @@ class VitalLensRPPGMethod(RPPGMethod):
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": origin}
     if self.requested_model_name:
       payload['model'] = self.requested_model_name
-    if self.op_mode == Mode.BURST and self.state is not None:
-      # State and frame buffer have been initialized
-      assert self.input_buffer is not None
-      payload["state"] = base64.b64encode(self.state.astype(np.float32).tobytes()).decode('utf-8')
-      # Adjust idxs
-      idxs = idxs[(self.n_inputs-1):] - (self.n_inputs-1)
-      logging.debug(f"Providing state, which means that {self.n_inputs-1} less frames will be used and results for {self.n_inputs-1} less frames will be returned.")
     # Ask API to process video
-    response = requests.post(API_URL, headers=headers, json=payload, proxies=self.proxies)
+    response = requests.post(API_FILE_URL, headers=headers, json=payload, proxies=self.proxies)
     response_body = json.loads(response.text)
     # Check if call was successful
     if response.status_code != 200:
@@ -353,10 +360,10 @@ class VitalLensRPPGMethod(RPPGMethod):
       else:
         raise Exception(f"Error {response.status_code}: {response_body['message']}")
     # Dynamic dict parsing
-    api_vitals = response_body.get("vital_signs", {})
+    api_waveforms = response_body.get("waveforms", {})
     sig_ds = {}
     conf_ds = {}
-    for name, obj in api_vitals.items():
+    for name, obj in api_waveforms.items():
       if 'data' in obj:
         sig_ds[name] = np.asarray(obj['data'])
         c_val = obj.get('confidence')
@@ -364,52 +371,5 @@ class VitalLensRPPGMethod(RPPGMethod):
           conf_ds[name] = np.asarray(c_val)
         else:
           conf_ds[name] = np.zeros_like(sig_ds[name])
-    live_ds = np.asarray(response_body["face"]["confidence"])
-    if self.op_mode == Mode.BURST:
-      self.state = np.asarray(response_body["state"]["data"], dtype=np.float32)
+    live_ds = np.asarray(response_body.get("face", {}).get("confidence", [1.0] * frames_ds.shape[0]))
     return sig_ds, conf_ds, live_ds, idxs
-
-  def postprocess(
-      self,
-      sig: np.ndarray,
-      fps: float,
-      type: str,
-      filter: bool = True
-    ) -> np.ndarray:
-    """Apply filters to the estimated signal. 
-    Args:
-      sig: The estimated signal. Shape (n_frames,)
-      fps: The rate at which video was sampled. Scalar
-      type: The vital registry key (e.g. 'ppg_waveform').
-      filter: Whether to apply filters
-    Returns:
-      x: The filtered signal. Shape (n_frames,)
-    """
-    n_frames = sig.shape[-1]
-    meta = VITAL_REGISTRY.get(type)
-    if not meta or not filter:
-      return sig
-    proc = meta.get('processing')
-    if not proc:
-      return sig
-    constraints = proc.get('constraints', {})
-    fmin = constraints.get('fmin')
-    fmax = constraints.get('fmax')
-    processed_sig = sig.copy()
-    if proc.get('method') == 'detrend' and fmin:
-      if processed_sig.shape[-1] < 4 * API_MAX_FRAMES:
-        lambda_val = detrend_lambda_for_cutoff(fps, fmin)
-        processed_sig = detrend(processed_sig, lambda_val)
-    if fmax:
-      size = moving_average_size_for_response(fps, fmax)
-      processed_sig = moving_average(processed_sig, size)
-    if proc.get('standardize', False):
-      processed_sig = standardize(processed_sig)
-    assert processed_sig.shape == (n_frames,)
-    return processed_sig
-
-  def reset(self):
-    """Reset"""
-    if self.op_mode == Mode.BURST:
-      self.state = None
-      self.input_buffer = None

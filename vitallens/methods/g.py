@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2026 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,35 +19,28 @@
 # SOFTWARE.
 
 import numpy as np
-from prpy.numpy.core import standardize
-from prpy.numpy.filters import detrend, moving_average
-from prpy.numpy.physio import detrend_lambda_for_hr_response
-from prpy.numpy.physio import moving_average_size_for_hr_response
+import vitallens_core as vc
 
-from vitallens.enums import Method, Mode
+from vitallens.enums import Method
 from vitallens.methods.simple_rppg_method import SimpleRPPGMethod
 
 class GRPPGMethod(SimpleRPPGMethod):
   """The G algorithm by Verkruysse (2008)"""
-  def __init__(
-      self,
-      mode: Mode
-    ):
-    """Initialize the `GRPPGMethod`
-    
-    Args:
-      config: The configuration dict
-      mode: The operation mode
-    """
-    super(GRPPGMethod, self).__init__(mode=mode)
+  def __init__(self):
+    """Initialize the `GRPPGMethod`"""
+    super(GRPPGMethod, self).__init__()
     self.method = Method.G
-    self.parse_config({
-      'signals': ['heart_rate', 'ppg_waveform'],
-      'roi_method': 'face',
-      'fps_target': 30,
-      'est_window_length': 64,
-      'est_window_overlap': 0
-    })
+    config = vc.SessionConfig(
+      model_name="g",
+      supported_vitals=["heart_rate"],
+      return_waveforms=["ppg_waveform"],
+      fps_target=30.0,
+      input_size=100,
+      n_inputs=64,
+      roi_method="face"
+    )
+    self.parse_config(config, est_window_length=64, est_window_overlap=0)
+
   def algorithm(
       self,
       rgb: np.ndarray,
@@ -67,26 +60,3 @@ class GRPPGMethod(SimpleRPPGMethod):
     g = -1 * g
     # Return
     return g
-  def pulse_filter(self, 
-      sig: np.ndarray,
-      fps: float
-    ) -> np.ndarray:
-    """Apply filters to the estimated pulse signal.
-
-    Args:
-      sig: The estimated pulse signal. Shape (n_frames,)
-      fps: The rate at which signal was sampled.
-    Returns:
-      out: The filtered pulse signal. Shape (n_frames,)
-    """
-    # Detrend (high-pass equivalent)
-    Lambda = detrend_lambda_for_hr_response(fps)
-    sig = detrend(sig, Lambda)
-    # Moving average (low-pass equivalent)
-    size = moving_average_size_for_hr_response(fps)
-    sig = moving_average(sig, size)
-    # Standardize
-    sig = standardize(sig)
-    # Return
-    return sig
-  

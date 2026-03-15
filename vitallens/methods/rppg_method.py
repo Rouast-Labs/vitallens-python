@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2026 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,38 +19,30 @@
 # SOFTWARE.
 
 import abc
-
-from vitallens.enums import Mode
+import vitallens_core as vc
 
 class RPPGMethod(metaclass=abc.ABCMeta):
   """Abstract superclass for rPPG methods"""
-  def __init__(
-      self,
-      mode: Mode
-    ):
-    """Initialize the `RPPGMethod`
-    
-    Args:
-      mode: The operation mode
-    """
-    self.op_mode = mode
-  def parse_config(
-      self,
-      config: dict
-    ):
+  def __init__(self):
+    """Initialize the `RPPGMethod`"""
+    pass
+
+  def parse_config(self, config: vc.SessionConfig):
     """Set properties based on the config.
     
     Args:
-      config: The method's config dict
+      config: The method's config
     """
-    self.roi_method = config['roi_method']
-    self.fps_target = config['fps_target']
+    self.session_config = config
+    self.roi_method = config.roi_method
+    self.fps_target = config.fps_target
+
   @abc.abstractmethod
-  def __call__(self, frames, faces, fps, override_fps_target, override_global_parse):
-    """Run inference. Abstract method to be implemented in subclasses."""
+  def infer_batch(self, frames, faces, fps, override_fps_target, override_global_parse):
+    """Run batch inference. Abstract method to be implemented in subclasses."""
     pass
+
   @abc.abstractmethod
-  def reset(self):
-    """Reset. Abstract method to be implemented in subclasses."""
+  def infer_stream(self, frames, fps, state):
+    """Run stream inference. Abstract method to be implemented in subclasses."""
     pass
-  

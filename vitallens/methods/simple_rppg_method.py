@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2026 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,64 +24,49 @@ from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import reduce_roi, parse_image_inputs
 from prpy.numpy.interp import interpolate_filtered
 from typing import Union, Tuple
+import vitallens_core as vc
 
-from vitallens.buffer import SignalBuffer
-from vitallens.enums import Mode
 from vitallens.methods.rppg_method import RPPGMethod
-from vitallens.signal import assemble_results
 from vitallens.utils import merge_faces
 
 class SimpleRPPGMethod(RPPGMethod):
   """A simple rPPG method using a handcrafted algorithm based on RGB signal trace"""
-  def __init__(
-      self,
-      mode: Mode
-    ):
-    """Initialize the `SimpleRPPGMethod`
-    
-    Args:
-      mode: The operation mode
-    """
-    super(SimpleRPPGMethod, self).__init__(mode=mode)
+  def __init__(self):
+    """Initialize the `SimpleRPPGMethod`"""
+    super(SimpleRPPGMethod, self).__init__()
     self.n_inputs = 1
+
   def parse_config(
       self,
-      config: dict
+      config: vc.SessionConfig,
+      est_window_length: int,
+      est_window_overlap: int
     ):
     """Set properties based on the config.
     
     Args:
-      config: The method's config dict
+      config: The method's config object
+      est_window_length: The length of the estimation window
+      est_window_overlap: The overlap of consecutive estimation windows
     """
     super(SimpleRPPGMethod, self).parse_config(config=config)
-    self.signals = config['signals']
-    self.est_window_length = config['est_window_length']
-    self.est_window_overlap = config['est_window_overlap']
+    self.signals = config.supported_vitals + (config.return_waveforms or [])
+    self.est_window_length = est_window_length
+    self.est_window_overlap = est_window_overlap
     self.est_window_flexible = self.est_window_length == 0
-    if self.op_mode == Mode.BURST:
-      self.buffer = SignalBuffer(size=self.est_window_length, ndim=2)
+
   @abc.abstractmethod
-  def algorithm(
-      self,
-      rgb: np.ndarray,
-      fps: float
-    ):
+  def algorithm(self, rgb: np.ndarray, fps: float):
     """The algorithm. Abstract method to be implemented by subclasses."""
     pass
-  @abc.abstractmethod
-  def pulse_filter(self, 
-      sig: np.ndarray,
-      fps: float
-    ) -> np.ndarray:
-    """The post-processing filter to be applied to estimated pulse signal. Abstract method to be implemented by subclasses."""
-    pass
-  def __call__(
+
+  def infer_batch(
       self,
       inputs: Union[np.ndarray, str],
       faces: np.ndarray,
       fps: float,
       override_fps_target: float = None,
-      override_global_parse: float = None,
+      override_global_parse: bool = None,
     ) -> Tuple[dict, dict, dict, dict, np.ndarray]:
     """Estimate pulse signal from video frames using the subclass algorithm.
 
@@ -104,9 +89,9 @@ class SimpleRPPGMethod(RPPGMethod):
     u_roi = merge_faces(faces)
     faces = faces - [u_roi[0], u_roi[1], u_roi[0], u_roi[1]]
     # Parse the inputs
+    target_fps = override_fps_target if override_fps_target is not None else self.fps_target
     frames_ds, fps, inputs_shape, ds_factor, _ = parse_image_inputs(
-      inputs=inputs, fps=fps, roi=u_roi, target_size=None,
-      target_fps=override_fps_target if override_fps_target is not None else self.fps_target,
+      inputs=inputs, fps=fps, roi=u_roi, target_size=None, target_fps=target_fps,
       preserve_aspect_ratio=False, library='prpy', scale_algorithm='bilinear', 
       trim=None, allow_image=False, videodims=True)
     assert inputs_shape[0] == faces.shape[0], "Need same number of frames as face detections"
@@ -114,14 +99,8 @@ class SimpleRPPGMethod(RPPGMethod):
     assert frames_ds.shape[0] == faces_ds.shape[0], "Need same number of frames as face detections"
     fps_ds = fps*1.0/ds_factor
     # Extract rgb signal (n_frames_ds, 3)
-    if self.op_mode == Mode.BATCH:
-      roi_ds = np.asarray([get_roi_from_det(f, roi_method=self.roi_method) for f in faces_ds], dtype=np.int64) # roi for each frame (n, 4)
-      rgb_ds = reduce_roi(video=frames_ds, roi=roi_ds)
-    else:
-      # Use the last face detection for cropping (n_frames, 3)
-      rgb_ds = reduce_roi(video=frames_ds, roi=np.asarray(get_roi_from_det(faces_ds[-1], roi_method=self.roi_method), dtype=np.int64))
-      # Push to buffer and get buffered vals (pred_window_length, 3)
-      rgb_ds = self.buffer.update(rgb_ds, dt=inputs.shape[0])
+    roi_ds = np.asarray([get_roi_from_det(f, roi_method=self.roi_method) for f in faces_ds], dtype=np.int64) # roi for each frame (n, 4)
+    rgb_ds = reduce_roi(video=frames_ds, roi=roi_ds)
     # Perform rppg algorithm step (n_frames_ds,)
     sig_ds = self.algorithm(rgb_ds, fps_ds)
     # Interpolate to original sampling rate (n_frames,)
@@ -130,24 +109,23 @@ class SimpleRPPGMethod(RPPGMethod):
                                t_out=np.arange(inputs_shape[0]),
                                axis=0, extrapolate=True)
     # Filter (n_frames,)
-    sig = self.pulse_filter(sig, fps)
+    # sig = self.pulse_filter(sig, fps)
     # Package into dict
     sig_dict = {'ppg_waveform': sig}
     conf_dict = {'ppg_waveform': np.ones_like(sig)}
     live = np.ones_like(sig)
-    # Resolve method name
-    method_name = self.method.value if hasattr(self.method, 'value') else str(self.method)
     # Assemble and return the results
-    return assemble_results(
-      sig=sig_dict,
-      conf=conf_dict,
-      live=live,
-      fps=fps,
-      pred_signals=self.signals,
-      method_name=method_name,
-      can_provide_confidence=False
-    )
-  def reset(self):
-    """Reset"""
-    if self.op_mode == Mode.BURST:
-      self.buffer.clear()
+    return sig_dict, conf_dict, live
+
+  def infer_stream(
+      self,
+      frames: np.ndarray,
+      fps: float,
+      state
+    ):
+    """TODO"""
+    sig = self.algorithm(frames, fps)
+    sig_dict = {'ppg_waveform': sig}
+    conf_dict = {'ppg_waveform': np.ones_like(sig)}
+    live_out = np.ones_like(sig)
+    return sig_dict, conf_dict, live_out, None
