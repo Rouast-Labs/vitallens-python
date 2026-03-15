@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2026 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,16 +26,20 @@ load_dotenv()
 API_MIN_FRAMES = 16
 API_MAX_FRAMES = 900
 API_OVERLAP = 30
-API_URL = "https://api.rouast.com/vitallens-v3/file"
-if 'API_URL' in os.environ:
-  API_URL = os.getenv('API_URL')
+API_FILE_URL = "https://api.rouast.com/vitallens-v3/file"
+if 'API_FILE_URL' in os.environ:
+  API_FILE_URL = os.getenv('API_FILE_URL')
+API_STREAM_URL = "https://api.rouast.com/vitallens-v3/stream"
+if 'API_STREAM_URL' in os.environ:
+  API_STREAM_URL = os.getenv('API_STREAM_URL')
 API_RESOLVE_URL = "https://api.rouast.com/vitallens-v3/resolve-model"
 if 'API_RESOLVE_URL' in os.environ:
   API_RESOLVE_URL = os.getenv('API_RESOLVE_URL')
 
 # For local development against dev endpoints, create a `.env` file in the root
 # of the project and set the variables, for example:
-# API_URL="https://api-dev.rouast.com/vitallens-dev/file"
+# API_FILE_URL="https://api-dev.rouast.com/vitallens-dev/file"
+# API_STREAM_URL="https://api-dev.rouast.com/vitallens-dev/stream"
 # API_RESOLVE_URL="https://api-dev.rouast.com/vitallens-dev/resolve-model"
 
 # Video error message

@@ -32,7 +32,3 @@ class Method(Enum):
   VITALLENS_1_0 = "vitallens-1.0"
   VITALLENS_1_1 = "vitallens-1.1"
   VITALLENS_2_0 = "vitallens-2.0"
-
-class Mode(IntEnum):
-  BATCH = 1
-  BURST = 2

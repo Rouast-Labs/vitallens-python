@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Rouast Labs
+# Copyright (c) 2026 Rouast Labs
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,16 +24,16 @@ import logging
 import numpy as np
 import os
 from prpy.numpy.image import probe_image_inputs
-from typing import Union
+from typing import Union, Callable
+import vitallens_core as vc
 
-from vitallens.constants import DISCLAIMER, API_MAX_FRAMES
-from vitallens.enums import Method, Mode
+from vitallens.enums import Method
 from vitallens.methods.g import GRPPGMethod
 from vitallens.methods.chrom import CHROMRPPGMethod
 from vitallens.methods.pos import POSRPPGMethod
 from vitallens.methods.vitallens import VitalLensRPPGMethod
-from vitallens.signal import estimate_rolling_vitals
 from vitallens.ssd import FaceDetector
+from vitallens.stream import StreamSession
 from vitallens.utils import check_faces, convert_ndarray_to_list
 
 logging.getLogger().setLevel("INFO")
@@ -42,7 +42,6 @@ class VitalLens:
   def __init__(
       self, 
       method: Union[Method, str] = "vitallens",
-      mode: Mode = Mode.BATCH,
       api_key: str = None,
       proxies: dict = None,
       detect_faces: bool = True,
@@ -52,7 +51,8 @@ class VitalLens:
       fdet_score_threshold: float = 0.9,
       fdet_iou_threshold: float = 0.3,
       export_to_json: bool = True,
-      export_dir: str = "."
+      export_dir: str = ".",
+      mode=None # Deprecated
     ):
     """Initialises the client. Loads face detection model if necessary.
 
@@ -66,7 +66,6 @@ class VitalLens:
 
     Args:
       method: The rPPG method to be used for inference.
-      mode: Operate in batch or burst mode
       api_key: Usage key for the VitalLens API (required for vitallens methods, unless using proxy)
       proxies: Dictionary mapping protocol to the URL of the proxy.
       detect_faces: `True` if faces need to be detected, otherwise `False`.
@@ -79,35 +78,39 @@ class VitalLens:
       export_to_json: If `True`, write results to a json file.
       export_dir: The directory to which json files are written.
     """
+    if mode is not None:
+      logging.warning("The 'mode' argument is deprecated. Use vl(video) for batch and vl.stream() for live streams.")
+    
     if isinstance(method, Method):
       self.method_name = method.value
     else:
       self.method_name = str(method)
-    self.mode = mode
+
     if self.method_name.startswith("vitallens"):
       self.rppg = VitalLensRPPGMethod(
-        mode=mode,
         api_key=api_key,
         requested_model_name=self.method_name,
         proxies=proxies
       )
     elif self.method_name == "g":
-      self.rppg = GRPPGMethod(mode=mode)
+      self.rppg = GRPPGMethod()
     elif self.method_name == "chrom":
-      self.rppg = CHROMRPPGMethod(mode=mode)
+      self.rppg = CHROMRPPGMethod()
     elif self.method_name == "pos":
-      self.rppg = POSRPPGMethod(mode=mode)
+      self.rppg = POSRPPGMethod()
     else:
       raise ValueError(f"Unknown method or model: {self.method_name}")
+
     self.detect_faces = detect_faces
     self.estimate_rolling_vitals = estimate_rolling_vitals
     self.export_to_json = export_to_json
     self.export_dir = export_dir
+    self.fdet_fs = fdet_fs
+
     if detect_faces:
       self.face_detector = FaceDetector(
         max_faces=fdet_max_faces, fs=fdet_fs, score_threshold=fdet_score_threshold,
         iou_threshold=fdet_iou_threshold)
-    assert not (fdet_max_faces > 1 and mode == Mode.BURST), "burst mode only supported for one face"
 
   def __call__(
       self,
@@ -142,18 +145,27 @@ class VitalLens:
         [
           {
             'face': {
-              'coordinates': <Face coordinates for each frame as np.ndarray of shape (n_frames, 4)>,
-              'confidence': <Face live confidence for each frame as np.ndarray of shape (n_frames,)>,
-              'note': <Explanatory note>
+              'coordinates': [[247, 52, 444, 332], ...],
+              'confidence': [0.6115, 0.9207, 0.9183, ...],
+              'note': "Face detection coordinates..."
             },
-            'vital_signs': {
+            'vitals': {
               'heart_rate': {
-                'value': <Estimated global value as float scalar>,
-                'unit': <Value unit>,
-                'confidence': <Estimation confidence as float scalar>,
-                'note': <Explanatory note>
+                'value': 60.5,
+                'unit': 'bpm',
+                'confidence': 0.9242,
+                'note': 'Global estimate of heart rate...'
               },
               <other vitals...>
+            },
+            'waveforms': {
+              'ppg_waveform': {
+                'data': [0.1, 0.2, ...],
+                'unit': 'unitless',
+                'confidence': [0.9, 0.9, ...],
+                'note': '...'
+              },
+              <other waveforms...>
             },
             'message': <Message about estimates>
           },
@@ -164,11 +176,6 @@ class VitalLens:
         ]
     """
     # Probe inputs
-    if self.mode == Mode.BURST and not isinstance(video, np.ndarray):
-      raise ValueError("Must provide `np.ndarray` inputs for burst mode.")
-    if self.mode == Mode.BURST and isinstance(self.rppg, VitalLensRPPGMethod):
-      if video.shape[0] > (API_MAX_FRAMES - self.rppg.n_inputs + 1):
-        raise ValueError(f"Maximum number of frames in burst mode is {API_MAX_FRAMES - self.rppg.n_inputs + 1}, but received {video.shape[0]}.")
     inputs_shape, fps, _ = probe_image_inputs(video, fps=fps, allow_image=False)
     # Warning if using long video with simple rPPG method
     target_fps = override_fps_target if override_fps_target is not None else self.rppg.fps_target
@@ -177,10 +184,7 @@ class VitalLens:
     _, height, width, _ = inputs_shape
     if self.detect_faces:
       # Detect faces
-      if self.mode == Mode.BURST:
-        faces_rel, _ = self.face_detector(inputs=video[-1:], n_frames=1, fps=fps)
-      else:
-        faces_rel, _ = self.face_detector(inputs=video, n_frames=inputs_shape[0], fps=fps)
+      faces_rel, _ = self.face_detector(inputs=video, n_frames=inputs_shape[0], fps=fps)
       # If no faces detected: return empty list
       if len(faces_rel) == 0:
         logging.warning("No faces detected to in the video")
@@ -191,53 +195,52 @@ class VitalLens:
       faces = np.transpose(faces, (1, 0, 2))
     # Check if the faces are valid
     faces = check_faces(faces, inputs_shape)
-    # Get video duration for rolling vital calculations
-    video_duration_s = inputs_shape[0] / fps
     # Run separately for each face
     results = []
     for face in faces:
-      # Run selected rPPG method
-      data, unit, conf, note, live = self.rppg(
+      sig, conf, live = self.rppg.infer_batch(
         inputs=video,
         faces=face,
         fps=fps,
         override_fps_target=override_fps_target,
         override_global_parse=override_global_parse
       )
-      # Rounding
       live = np.round(live, 4)
-      # Parse face results
+
+      self.rppg.session_config.estimate_rolling_vitals = self.estimate_rolling_vitals
+      session = vc.Session(self.rppg.session_config)
+      signals_input = {k: vc.SignalInput(data=v.tolist(), confidence=conf[k].tolist()) for k, v in sig.items()}
+      face_input = vc.FaceInput(coordinates=face.tolist(), confidence=live.tolist())
+      timestamps = (np.arange(inputs_shape[0]) / fps).tolist()
+      session_input = vc.SessionInput(face=face_input, signals=signals_input, timestamp=timestamps)
+      session_result = session.process(session_input, "Global")
+
       face_result = {
         'face': {
-          'coordinates': face,
-          'confidence': live,
-          'note': "Face detection coordinates for this face with live confidence levels."
+          'coordinates': session_result.face.coordinates if session_result.face else face.tolist(),
+          'confidence': session_result.face.confidence if session_result.face else live.tolist(),
+          'note': session_result.face.note if session_result.face and session_result.face.note else "Face detection coordinates for this face with live confidence levels."
         },
-        'vital_signs': {},
-        'message': DISCLAIMER
+        'vitals': {
+            k: {'value': v.value, 'unit': v.unit, 'confidence': v.confidence, 'note': v.note}
+            for k, v in session_result.vitals.items()
+        },
+        'waveforms': {
+            k: {'data': v.data, 'unit': v.unit, 'confidence': v.confidence, 'note': v.note}
+            for k, v in session_result.waveforms.items()
+        },
+        'rolling_vitals': {
+            k: {'data': v.data, 'unit': v.unit, 'confidence': v.confidence, 'note': v.note}
+            for k, v in session_result.rolling_vitals.items()
+        } if session_result.rolling_vitals else {},
+        'message': session_result.message,
+        'fps': session_result.fps,
+        'n': len(session_result.timestamp),
+        'time': session_result.timestamp
       }
-      # Parse vital signs results
-      for name in self.rppg.signals:
-        if name in data and name in unit and name in conf and name in note:
-          is_scalar = np.ndim(data[name]) == 0
-          val = np.round(data[name], 2 if is_scalar else 8)
-          c_val = np.round(conf[name], 4)
-          if is_scalar:
-            val, c_val = float(val), float(c_val)
-          face_result['vital_signs'][name] = {
-            ('value' if is_scalar else 'data'): val,
-            'unit': unit[name],
-            'confidence': c_val,
-            'note': note[name]
-          }
-      if self.estimate_rolling_vitals:
-        estimate_rolling_vitals(
-          vital_signs_dict=face_result['vital_signs'], data=data, conf=conf,
-          signals_available=set(self.rppg.signals), fps=fps, video_duration_s=video_duration_s)
+
       results.append(face_result)
-      for res in results:
-        res['fps'] = fps
-        res['n'] = inputs_shape[0]
+
     # Export to json
     if self.export_to_json:
       os.makedirs(self.export_dir, exist_ok=True)
@@ -245,6 +248,14 @@ class VitalLens:
       with open(os.path.join(self.export_dir, export_filename), 'w') as f:
         json.dump(convert_ndarray_to_list(results), f, indent=4)
     return results
-  def reset(self):
-    """Resets the client state if applicable."""
-    self.rppg.reset()
+  
+  def stream(self, on_result: Callable = None) -> StreamSession:
+    """
+    Returns a StreamSession context manager for real-time video processing.
+    """
+    return StreamSession(
+      rppg_method=self.rppg,
+      face_detector=self.face_detector if self.detect_faces else None,
+      fdet_fs=self.fdet_fs,
+      on_result=on_result
+    )
