@@ -1,191 +1,188 @@
 import argparse
-import concurrent.futures
+from collections import deque
 import cv2
 import numpy as np
-from prpy.constants import SECONDS_PER_MINUTE
-from prpy.numpy.face import get_upper_body_roi_from_det
-from prpy.numpy.physio import estimate_rate_from_signal, EScope, EMethod
-from prpy.numpy.physio import HR_MIN, HR_MAX, RR_MIN, RR_MAX
-import sys
-import threading
 import time
-import warnings
+from vitallens import VitalLens
+import vitallens_core as vc
 
-sys.path.append('../vitallens-python')
-from vitallens import VitalLens, Mode, Method
-from vitallens.buffer import SignalBuffer, MultiSignalBuffer
-from vitallens.constants import API_MIN_FRAMES
+def hex_to_bgr(hex_color):
+  if not hex_color: return (255, 255, 255)
+  hex_color = hex_color.lstrip('#')
+  r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+  return (b, g, r)
 
-def draw_roi(frame, roi):
-  roi = np.asarray(roi).astype(np.int32)
-  frame = cv2.rectangle(frame, (roi[0], roi[1]), (roi[2], roi[3]), (0, 255, 0), 1)
+def draw_waveform(frame, data, color, rect, title):
+  x, y, w, h = rect
+  cv2.putText(frame, title, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+  if len(data) < 2: return
 
-def draw_signal(frame, roi, sig, sig_name, sig_conf_name, draw_area_tl_x, draw_area_tl_y, color):
-  def _draw(frame, vals, display_height, display_width, min_val, max_val, color, thickness):
-    height_mult = display_height/(max_val - min_val)
-    width_mult = display_width/(vals.shape[0] - 1)
-    p1 = (int(draw_area_tl_x), int(draw_area_tl_y + (max_val - vals[0]) * height_mult))
-    for i, s in zip(range(1, len(vals)), vals[1:]):
-      p2 = (int(draw_area_tl_x + i * width_mult), int(draw_area_tl_y + (max_val - s) * height_mult))
-      frame = cv2.line(frame, p1, p2, color, thickness)
-      p1 = p2
-  # Derive dims from roi
-  display_height = (roi[3] - roi[1]) / 2.0
-  display_width = (roi[2] - roi[0]) * 1.2
-  # Draw signal
-  if sig_name in sig:
-    vals = np.asarray(sig[sig_name])
-    min_val = np.min(vals)
-    max_val = np.max(vals)
-    if max_val - min_val == 0:
-      return frame
-    _draw(frame=frame, vals=vals, display_height=display_height, display_width=display_width,
-          min_val=min_val, max_val=max_val, color=color, thickness=2)
-  # Draw confidence
-  if sig_conf_name in sig:
-    vals = np.asarray(sig[sig_conf_name])
-    _draw(frame=frame, vals=vals, display_height=display_height, display_width=display_width,
-          min_val=0., max_val=1., color=color, thickness=1)
+  min_val, max_val = min(data), max(data)
+  if max_val - min_val == 0: return
 
-def draw_fps(frame, fps, text, draw_area_bl_x, draw_area_bl_y):
-  cv2.putText(frame, text=f"{text}: {fps:.1f}", org=(draw_area_bl_x, draw_area_bl_y),
-    fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(0,255,0), thickness=1)
+  pts = []
+  step = w / (len(data) - 1)
+  for i, val in enumerate(data):
+      px = int(x + i * step)
+      py = int(y + h - ((val - min_val) / (max_val - min_val)) * h)
+      pts.append((px, py))
 
-def draw_vital(frame, sig, text, sig_name, fps, color, draw_area_bl_x, draw_area_bl_y):
-  if sig_name in sig:
-    f_range = (HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE) if 'ppg' in sig_name else (RR_MIN/SECONDS_PER_MINUTE, RR_MAX/SECONDS_PER_MINUTE)
-    val = estimate_rate_from_signal(signal=sig[sig_name], f_s=fps, f_range=f_range, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
-    cv2.putText(frame, text=f"{text}: {val:.1f}", org=(draw_area_bl_x, draw_area_bl_y),
-      fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=color, thickness=2)
+  pts = np.array(pts, np.int32).reshape((-1, 1, 2))
+  cv2.polylines(frame, [pts], isClosed=False, color=color, thickness=2, lineType=cv2.LINE_AA)
 
-class VitalLensRunnable:
-  def __init__(self, method, api_key, proxies=None):
-    self.active = threading.Event()
-    self.result = []
-    self.vl = VitalLens(method=method,
-                        mode=Mode.BURST,
-                        api_key=api_key,
-                        proxies=proxies,
-                        detect_faces=True,
-                        estimate_rolling_vitals=True,
-                        export_to_json=False)
-  def __call__(self, inputs, fps):
-    self.active.set()
-    self.result = self.vl(np.asarray(inputs), fps=fps)
-    self.active.clear()
+def main():
+  parser = argparse.ArgumentParser(description="VitalLens Live Webcam Demo")
+  parser.add_argument('--method', type=str, default='pos', help='Method to use (e.g., pos, chrom, g, vitallens)')
+  parser.add_argument('--api_key', type=str, default=None, help='API key (required for vitallens method)')
+  args = parser.parse_args()
 
-def run(args):
+  vl = VitalLens(method=args.method, api_key=args.api_key)
+  vl.rppg.fps_target = 15.0
+
   cap = cv2.VideoCapture(0)
-  executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)  
-  proxies = None
-  if args.proxy:
-    proxies = {"https": args.proxy, "http": args.proxy}
-  vl = VitalLensRunnable(method=args.method, api_key=args.api_key, proxies=proxies)
-  signal_buffer = MultiSignalBuffer(size=240, ndim=1, ignore_k=['face'])
-  fps_buffer = SignalBuffer(size=240, ndim=1, pad_val=np.nan)
-  frame_buffer = []
-  # Sample frames from cv2 video stream attempting to achieve this framerate
-  target_fps = 30.
-  # Check if the webcam is opened correctly
   if not cap.isOpened():
-    raise IOError("Cannot open webcam")
-  # Read first frame to get dims
-  _, frame = cap.read()
-  height, width, _ = frame.shape
-  roi = None
-  i = 0
-  t, p_t = time.time(), time.time()
-  fps, p_fps = 30.0, 30.0
-  ds_factor = 1
-  n_frames = 0
-  signals = None
-  while True:
-    ret, frame = cap.read()
-    if not ret:
-      break
-    # Measure frequency
-    t_prev = t
-    t = time.time()
-    if not vl.active.is_set():
-      # Process result if available
-      if len(vl.result) > 0:
-        # Results are available - fetch and reset
-        result = vl.result[0]
-        vl.result = []
-        # Update the buffer
-        signals = signal_buffer.update({
-          **{
-            f"{key}_sig": value['value'] if 'value' in value else np.array(value['data'])
-            for key, value in result['vital_signs'].items()
-          },
-          **{
-            f"{key}_conf": value['confidence'] if isinstance(value['confidence'], np.ndarray) else np.array(value['confidence'])
-            for key, value in result['vital_signs'].items()
-          },
-          'face_conf': result['face']['confidence'],
-        }, dt=n_frames)
-        with warnings.catch_warnings():
-          warnings.simplefilter("ignore", category=RuntimeWarning)
-          # Measure actual effective sampling frequency at which neural net input was sampled
-          fps = np.nanmean(fps_buffer.update([(1./(t - t_prev))/ds_factor], dt=n_frames))
-        roi = get_upper_body_roi_from_det(result['face']['coordinates'][-1], clip_dims=(width, height), cropped=True)
-        # Measure prediction frequency - how often predictions are made
-        p_t_prev = p_t
-        p_t = time.time()
-        p_fps = 1./(p_t - p_t_prev)
+    print("Error: Could not open webcam.")
+    return
+
+  print(f"Starting live stream using {args.method}. Press 'q' to quit.")
+
+  font = cv2.FONT_HERSHEY_SIMPLEX
+  latest_vitals = {}
+  latest_coords = None
+  ppg_history = deque(maxlen=150)
+  ppg_conf = deque(maxlen=150)
+  resp_history = deque(maxlen=150)
+  resp_conf = deque(maxlen=150)
+  vital_conf_thresh = 0.8
+  hrv_conf_thresh = 0.7
+  start_time = time.time()
+
+  ppg_meta = vc.get_vital_info("ppg_waveform")
+  hr_meta = vc.get_vital_info("heart_rate")
+  sdnn_meta = vc.get_vital_info("hrv_sdnn")
+  rmssd_meta = vc.get_vital_info("hrv_rmssd")
+  resp_meta = vc.get_vital_info("respiratory_waveform")
+  rr_meta = vc.get_vital_info("respiratory_rate")
+
+  with vl.stream() as session:
+    while True:
+      ret, frame = cap.read()
+      if not ret:
+        break
+
+      timestamp = time.time() - start_time
+      rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+      session.push(rgb_frame, timestamp)
+
+      if session.current_face is not None:
+        if latest_coords is None:
+          print("[DEBUG] Face initially detected!")
+        latest_coords = session.current_face
+
+      res = session.get_result(block=False)
+
+      if res and len(res) > 0:
+        new_vitals = res[0].get('vitals', {})
+        if new_vitals:
+          latest_vitals.update(new_vitals)
+
+        waveforms = res[0].get('waveforms', {})
+        if 'ppg_waveform' in waveforms:
+          ppg_history.extend(waveforms['ppg_waveform']['data'])
+          ppg_conf.extend(waveforms['ppg_waveform']['confidence'])
+        if 'respiratory_waveform' in waveforms:
+          resp_history.extend(waveforms['respiratory_waveform']['data'])
+          resp_conf.extend(waveforms['respiratory_waveform']['confidence'])
+
+      if session.current_face is None:
+        state_text = "Searching"
+        msg_text = "Position your face in the frame"
+        color = (0, 165, 255)
+      elif 'heart_rate' not in latest_vitals:
+        state_text = "Calibrating"
+        msg_text = "Hold still and ensure good lighting..."
+        color = (255, 0, 255)
       else:
-        # No results available
-        roi = None
-        signal_buffer.clear()
-      # Start next prediction
-      is_api_method = str(args.method).lower().startswith("vitallens")
-      is_api_method = is_api_method or (isinstance(args.method, Method) and args.method == Method.VITALLENS)
-      if len(frame_buffer) >= (API_MIN_FRAMES if is_api_method else 1):
-        n_frames = len(frame_buffer)
-        executor.submit(vl, frame_buffer.copy(), fps)
-        frame_buffer.clear()
-    # Sample frames
-    if i % ds_factor == 0:
-      # Add current frame to the buffer (BGR -> RGB)
-      frame_buffer.append(frame[...,::-1])
-    i += 1
-    # Display
-    if roi is not None:
-      draw_roi(frame, roi)
-      draw_signal(
-        frame=frame, roi=roi, sig=signals, sig_name='ppg_waveform_sig', sig_conf_name='ppg_waveform_conf',
-        draw_area_tl_x=roi[2]+20, draw_area_tl_y=roi[1], color=(0, 0, 255))
-      draw_signal(
-        frame=frame, roi=roi, sig=signals, sig_name='respiratory_waveform_sig', sig_conf_name='respiratory_waveform_conf',
-        draw_area_tl_x=roi[2]+20, draw_area_tl_y=int(roi[1]+(roi[3]-roi[1])/2.0), color=(255, 0, 0))
-      draw_fps(frame, fps=fps, text="fps", draw_area_bl_x=roi[0], draw_area_bl_y=roi[3]+20)
-      draw_fps(frame, fps=p_fps, text="p_fps", draw_area_bl_x=int(roi[0]+0.4*(roi[2]-roi[0])), draw_area_bl_y=roi[3]+20)
-      draw_vital(frame, sig=signals, text="hr [bpm]", sig_name='ppg_waveform_sig', fps=fps, color=(0,0,255), draw_area_bl_x=roi[2]+20, draw_area_bl_y=int(roi[1]+(roi[3]-roi[1])/2.0))
-      draw_vital(frame, sig=signals, text="rr [rpm]", sig_name='respiratory_waveform_sig', fps=fps, color=(255,0,0), draw_area_bl_x=roi[2]+20, draw_area_bl_y=roi[3])
-    cv2.imshow('Live', frame)
-    c = cv2.waitKey(1)
-    if c == 27:
-      break
-    # Even out fps
-    dt_req = 1./target_fps - (time.time() - t)
-    if dt_req > 0: time.sleep(dt_req)
+        state_text = "Tracking"
+        msg_text = "Tracking vitals"
+        color = (0, 255, 0)
+
+      fh, fw = frame.shape[:2]
+
+      # Top bar
+      cv2.rectangle(frame, (0, 0), (fw, 55), (30, 30, 30), -1)
+      cv2.putText(frame, state_text, (20, 25), font, 0.7, color, 2)
+      cv2.putText(frame, msg_text, (20, 45), font, 0.5, (200, 200, 200), 1)
+
+      if session.current_face is not None:
+        x1, y1, x2, y2 = map(int, session.current_face)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+      # Bottom panel
+      panel_h = 240
+      cv2.rectangle(frame, (0, fh - panel_h), (fw, fh), (30, 30, 30), -1)
+
+      n_samples = int(vl.rppg.fps_target)
+      ppg_last_sec = list(ppg_conf)[-n_samples:]
+      resp_last_sec = list(resp_conf)[-n_samples:]
+      avg_ppg_conf = sum(ppg_last_sec) / len(ppg_last_sec) if ppg_last_sec else 0
+      avg_resp_conf = sum(resp_last_sec) / len(resp_last_sec) if resp_last_sec else 0
+
+      wave_w = fw - 240
+
+      # Fetch metadata
+      ppg_meta = vc.get_vital_info("ppg_waveform")
+      hr_meta = vc.get_vital_info("heart_rate")
+      sdnn_meta = vc.get_vital_info("hrv_sdnn")
+      rmssd_meta = vc.get_vital_info("hrv_rmssd")
+      resp_meta = vc.get_vital_info("respiratory_waveform")
+      rr_meta = vc.get_vital_info("respiratory_rate")
+
+      # --- PPG Row ---
+      row1_y = fh - panel_h + 30
+      if avg_ppg_conf >= vital_conf_thresh:
+        draw_waveform(frame, list(ppg_history), hex_to_bgr(ppg_meta.color), (20, row1_y, wave_w - 40, 60), ppg_meta.display_name)
+
+      # HR
+      hr_val = "--"
+      if 'heart_rate' in latest_vitals and latest_vitals['heart_rate']['confidence'] >= vital_conf_thresh:
+        hr_val = f"{latest_vitals['heart_rate']['value']:.0f}"
+      cv2.putText(frame, f"{hr_meta.short_name}", (wave_w, row1_y), font, 0.5, (200, 200, 200), 1)
+      cv2.putText(frame, f"{hr_val} {hr_meta.unit}", (wave_w, row1_y + 30), font, 0.7, hex_to_bgr(hr_meta.color), 2)
+
+      # SDNN
+      sdnn_val = "--"
+      if 'hrv_sdnn' in latest_vitals and latest_vitals['hrv_sdnn']['confidence'] >= hrv_conf_thresh:
+        sdnn_val = f"{latest_vitals['hrv_sdnn']['value']:.0f}"
+      cv2.putText(frame, f"{sdnn_meta.short_name}", (wave_w + 120, row1_y), font, 0.4, (200, 200, 200), 1)
+      cv2.putText(frame, f"{sdnn_val} {sdnn_meta.unit}", (wave_w + 120, row1_y + 20), font, 0.5, hex_to_bgr(sdnn_meta.color), 1)
+
+      # RMSSD
+      rmssd_val = "--"
+      if 'hrv_rmssd' in latest_vitals and latest_vitals['hrv_rmssd']['confidence'] >= hrv_conf_thresh:
+        rmssd_val = f"{latest_vitals['hrv_rmssd']['value']:.0f}"
+      cv2.putText(frame, f"{rmssd_meta.short_name}", (wave_w + 120, row1_y + 50), font, 0.4, (200, 200, 200), 1)
+      cv2.putText(frame, f"{rmssd_val} {rmssd_meta.unit}", (wave_w + 120, row1_y + 70), font, 0.5, hex_to_bgr(rmssd_meta.color), 1)
+
+      # --- Resp Row ---
+      row2_y = fh - panel_h + 140
+      if avg_resp_conf >= vital_conf_thresh:
+        draw_waveform(frame, list(resp_history), hex_to_bgr(resp_meta.color), (20, row2_y, wave_w - 40, 60), resp_meta.display_name)
+
+      rr_val = "--"
+      if 'respiratory_rate' in latest_vitals and latest_vitals['respiratory_rate']['confidence'] >= vital_conf_thresh:
+        rr_val = f"{latest_vitals['respiratory_rate']['value']:.0f}"
+      cv2.putText(frame, f"{rr_meta.short_name}", (wave_w, row2_y), font, 0.5, (200, 200, 200), 1)
+      cv2.putText(frame, f"{rr_val} {rr_meta.unit}", (wave_w, row2_y + 30), font, 0.7, hex_to_bgr(rr_meta.color), 2)
+
+      cv2.imshow("VitalLens Live", frame)
+
+      if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
   cap.release()
   cv2.destroyAllWindows()
 
-def method_type(name):
-  try:
-    return Method[name.upper()]
-  except KeyError:
-    pass
-  if name.lower().startswith("vitallens"):
-    return name
-  raise argparse.ArgumentTypeError(f"{name} is not a valid Method")
-
-if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--api_key', type=str, default=None, help='Your API key (Optional if using proxy auth).')
-  parser.add_argument('--method', type=method_type, default='vitallens', help='Choice of method (vitallens, pos, chrom, g, or specific version like vitallens-2.0)')
-  parser.add_argument('--proxy', type=str, default=None, help='Proxy URL (e.g., http://user:pass@10.10.1.10:3128)')
-  args = parser.parse_args()
-  run(args)
+if __name__ == "__main__":
+  main()

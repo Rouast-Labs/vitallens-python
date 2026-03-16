@@ -70,56 +70,56 @@ def run(args=None):
   if not result:
     print("No faces detected, cannot plot results.")
     return
-  vital_signs = result[0]['vital_signs']
-  if "respiratory_waveform" in vital_signs:
+  vitals = result[0].get('vitals', {})
+  waveforms = result[0].get('waveforms', {})
+  rolling_vitals = result[0].get('rolling_vitals', {})
+  if "respiratory_waveform" in waveforms:
     fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(15, 8))
   else:
     fig, ax1 = plt.subplots(1, figsize=(15, 6))
   method_name = args.method.name if hasattr(args.method, 'name') else str(args.method)
   method_color = get_method_color(args.method)
   fig.suptitle(f"Vital signs from {args.video_path} using {method_name} ({time_ms:.2f} ms)")
-  # PPG Waveform and Heart Rate Plot (ax1)
   ax1.set_ylabel('Waveform (unitless)', color=method_color)
   ax1.tick_params(axis='y', labelcolor=method_color)
-  if "ppg_waveform" in vital_signs:
-    hr_string = f" -> Global HR: {vital_signs['heart_rate']['value']:.1f} bpm" if "heart_rate" in vital_signs else ""
-    ax1.plot(vital_signs['ppg_waveform']['data'], color=method_color, label=f"PPG Waveform{hr_string}", zorder=10)
-    ax1.plot(vital_signs['ppg_waveform']['confidence'], color=method_color, linestyle='--', label='PPG Confidence', zorder=5)
+  if "ppg_waveform" in waveforms:
+    hr_string = f" -> Global HR: {vitals['heart_rate']['value']:.1f} bpm" if "heart_rate" in vitals else ""
+    ax1.plot(waveforms['ppg_waveform']['data'], color=method_color, label=f"PPG Waveform{hr_string}", zorder=10)
+    ax1.plot(waveforms['ppg_waveform']['confidence'], color=method_color, linestyle='--', label='PPG Confidence', zorder=5)
   if ppg_gt is not None:
     hr_gt = estimate_hr_from_signal(signal=ppg_gt, f_s=fps, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
     ax1.plot(ppg_gt, color=COLOR_GT, label=f"Ground Truth PPG -> HR: {hr_gt:.1f} bpm", zorder=0)
   ax1_handles, ax1_labels = ax1.get_legend_handles_labels()
-  if "rolling_heart_rate" in vital_signs:
+  if "heart_rate" in rolling_vitals:
     ax1_hr = ax1.twinx()
     hr_color = '#ff7f0e'
     ax1_hr.set_ylabel('Heart Rate (bpm)', color=hr_color)
     ax1_hr.tick_params(axis='y', labelcolor=hr_color)
     ax1_hr.set_ylim(35, 180)
-    rolling_hr_data = vital_signs['rolling_heart_rate']['data']
+    rolling_hr_data = rolling_vitals['heart_rate']['data']
     line_hr, = ax1_hr.plot(rolling_hr_data, color=hr_color, linestyle='-', label='Rolling Heart Rate')
     ax1_handles.append(line_hr)
     ax1_labels.append('Rolling Heart Rate')
   ax1.legend(ax1_handles, ax1_labels, loc='upper left')
   ax1.grid(True, linestyle=':', alpha=0.6)
-  # Respiratory Waveform and Rate Plot (ax2)
-  if "respiratory_waveform" in vital_signs:
+  if "respiratory_waveform" in waveforms:
     ax2.set_xlabel('Frame Index')
     ax2.set_ylabel('Waveform (unitless)', color=method_color)
     ax2.tick_params(axis='y', labelcolor=method_color)
-    rr_string = f" -> Global RR: {vital_signs['respiratory_rate']['value']:.1f} bpm" if "respiratory_rate" in vital_signs else ""
-    ax2.plot(vital_signs['respiratory_waveform']['data'], color=method_color, label=f"Respiratory Waveform{rr_string}", zorder=10)
-    ax2.plot(vital_signs['respiratory_waveform']['confidence'], color=method_color, linestyle='--', label='Respiratory Confidence', zorder=5)
+    rr_string = f" -> Global RR: {vitals['respiratory_rate']['value']:.1f} bpm" if "respiratory_rate" in vitals else ""
+    ax2.plot(waveforms['respiratory_waveform']['data'], color=method_color, label=f"Respiratory Waveform{rr_string}", zorder=10)
+    ax2.plot(waveforms['respiratory_waveform']['confidence'], color=method_color, linestyle='--', label='Respiratory Confidence', zorder=5)
     if resp_gt is not None:
       rr_gt = estimate_rr_from_signal(signal=resp_gt, f_s=fps, scope=EScope.GLOBAL, method=EMethod.PERIODOGRAM)
-      ax2.plot(resp_gt, color=COLOR_GT, label=f"Ground Truth Respiration -> RR: {rr_gt:.1f} bpm", zorder=0)
+      ax2.plot(resp_gt, color=COLOR_GT, label=f"Ground Truth Respiration -> RR: {rr_gt:.1f} bpm", zorder=0) 
     ax2_handles, ax2_labels = ax2.get_legend_handles_labels()
-    if "rolling_respiratory_rate" in vital_signs:
+    if "respiratory_rate" in rolling_vitals:
       ax2_rr = ax2.twinx()
       rr_color = '#d62728'
       ax2_rr.set_ylabel('Respiratory Rate (bpm)', color=rr_color)
       ax2_rr.tick_params(axis='y', labelcolor=rr_color)
       ax2_rr.set_ylim(0, 45)
-      rolling_rr_data = vital_signs['rolling_respiratory_rate']['data']
+      rolling_rr_data = rolling_vitals['respiratory_rate']['data']
       line_rr, = ax2_rr.plot(rolling_rr_data, color=rr_color, linestyle='-', label='Rolling Respiratory Rate')
       ax2_handles.append(line_rr)
       ax2_labels.append('Rolling Respiratory Rate')

@@ -21,7 +21,6 @@
 from dataclasses import dataclass
 import logging
 import numpy as np
-from prpy.numpy.face import get_roi_from_det
 from prpy.numpy.image import parse_image_inputs
 import queue
 import threading
@@ -154,6 +153,7 @@ class StreamSession:
     self.buffer_manager = BufferManager(vc.compute_buffer_config(self.rppg.session_config))
     self.vc_session = vc.Session(self.rppg.session_config)
     self.last_fdet_time = -1.0
+    self.last_processed_time = -1.0
     self.current_face = None
     self.current_roi_rust = None
     self.running = True
@@ -175,13 +175,17 @@ class StreamSession:
     """Pushes a single frame to the ingestion pipeline on the main thread."""
     if not self.running: return
     # Throttled face detection
+    min_interval = 1.0 / self.rppg.fps_target
+    if (timestamp - self.last_processed_time) < (min_interval - 0.005):
+      return
+    self.last_processed_time = timestamp
     if face is not None:
       self.current_face = face
     elif self.face_detector and (timestamp - self.last_fdet_time) >= (1.0 / self.fdet_fs):
       faces_rel, _ = self.face_detector(inputs=frame[np.newaxis], n_frames=1, fps=30.0)
-      if len(faces_rel) > 0:
+      if len(faces_rel) > 0 and len(faces_rel[0]) > 0:
         h, w = frame.shape[:2]
-        self.current_face = (faces_rel[0] * [w, h, w, h]).astype(np.int64)
+        self.current_face = (faces_rel[0][0] * [w, h, w, h]).astype(np.int64)
       self.last_fdet_time = timestamp
     if self.current_face is None:
       return
@@ -205,19 +209,27 @@ class StreamSession:
 
     # Process the frame for active buffer using its specific ROI
     for buf_id, buf_roi in active_buffers:
-      frame, _, _, _, _ = parse_image_inputs(
+      # Clamp ROI to image boundaries
+      x0 = max(0, int(buf_roi.x))
+      y0 = max(0, int(buf_roi.y))
+      x1 = min(frame.shape[1], int(buf_roi.x + buf_roi.width))
+      y1 = min(frame.shape[0], int(buf_roi.y + buf_roi.height))
+      
+      if x1 <= x0 or y1 <= y0:
+        continue
+
+      # Save to parsed_frame so we don't overwrite the original frame
+      parsed_frame, _, _, _, _ = parse_image_inputs(
         inputs=frame, fps=30.0,
-        roi=(int(buf_roi.x), int(buf_roi.y),
-             int(buf_roi.x + buf_roi.width),
-             int(buf_roi.y + buf_roi.height)),
+        roi=(x0, y0, x1, y1),
         target_size=self.rppg.input_size, preserve_aspect_ratio=False,
         library='prpy', scale_algorithm='bilinear', allow_image=True, videodims=False
       )
 
       if isinstance(self.rppg, SimpleRPPGMethod):
-        payload = np.mean(frame, axis=(0, 1))
+        payload = np.mean(parsed_frame, axis=(0, 1))
       else:
-        payload = frame
+        payload = parsed_frame
 
       ctx = InferenceContext(timestamp=timestamp, roi=buf_roi, face_conf=1.0)
       self.buffer_manager.append(buf_id, payload, ctx)
@@ -250,7 +262,9 @@ class StreamSession:
           window_frames, actual_fps, self.buffer_manager.get_state()
         )
         self.buffer_manager.update_state(new_state)
-        # Feed to core session
+        n_res = len(live)
+        timestamps = timestamps[-n_res:]
+        window_faces = window_faces[-n_res:]
         signals_input = {k: vc.SignalInput(data=v.tolist(), confidence=conf[k].tolist()) for k, v in sig.items()}
         face_input = vc.FaceInput(coordinates=window_faces.tolist(), confidence=live.tolist())
         session_input = vc.SessionInput(face=face_input, signals=signals_input, timestamp=timestamps)
