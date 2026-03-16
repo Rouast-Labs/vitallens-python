@@ -223,7 +223,19 @@ class VitalLensRPPGMethod(RPPGMethod):
     return sig_dict, conf_dict, live
 
   def infer_stream(self, frames: np.ndarray, fps: float, state=None):
-    """TODO"""
+    """Estimate vitals from a sequence of frames using the VitalLens streaming API.
+
+    Args:
+      frames: The input video frames of shape (n_frames, h, w, 3).
+      fps: The sampling frequency of the input frames.
+      state: The internal state of the rPPG method used to maintain temporal continuity.
+    Returns:
+      Tuple of
+        - sig_dict: A dictionary of the estimated signals.
+        - conf_dict: A dictionary of the estimated confidences.
+        - live: The face live confidence. Shape (n_frames,)
+        - new_state: The updated internal state of the rPPG method.
+    """
     headers = {
       "Content-Type": "application/octet-stream",
       "X-Encoding": "gzip"

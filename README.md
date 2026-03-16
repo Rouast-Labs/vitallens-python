@@ -22,6 +22,7 @@ The library provides:
 - **High-Fidelity Accuracy:** A simple interface to the VitalLens API for state-of-the-art estimation (heart rate, respiratory rate, HRV).
 - **Local Fallbacks:** Implementations of classic rPPG algorithms (`pos`, `chrom`, `g`) for local, API-free processing.
 - **Flexible Input:** Support for video files and in-memory `np.ndarray`.
+- **Real-time Streaming:** `stream()` context manager for low-latency live inference.
 - **Face Detection:** Integrated fast face detection and ROI management.
 
 Using a different language? Check out our [JavaScript client](https://github.com/Rouast-Labs/vitallens.js) and [iOS SDK](https://github.com/Rouast-Labs/vitallens-ios).
@@ -53,7 +54,7 @@ print("Heart Rate:", results[0]['vitals']['heart_rate']['value'])
 To get improved accuracy and advanced metrics like **Respiratory Rate** and **HRV**, use the `vitallens` method. You can get a free key from the [API Dashboard](https://www.rouast.com/api).
 
 ```python
-from vitallens import VitalLens, Method
+from vitallens import VitalLens
 
 # Automatically selects the best model for your plan
 vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
@@ -67,6 +68,23 @@ print(f"Respiratory Rate: {vitals['respiratory_rate']['value']:.1f} rpm")
 # HRV is available on paid plans
 if 'hrv_sdnn' in vitals:
     print(f"HRV (SDNN):       {vitals['hrv_sdnn']['value']:.1f} ms")
+```
+
+### Real-time Streaming
+
+Process live frames from a webcam or stream.
+
+```python
+import time
+from vitallens import VitalLens
+
+# Process live frames
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
+
+with vl.stream() as session:
+    # In your capture loop (e.g., OpenCV)
+    session.push(frame, timestamp=time.time())
+    results = session.get_result(block=False)
 ```
 <!-- mkdocs-end -->
 

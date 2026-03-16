@@ -39,6 +39,14 @@ class InferenceContext:
 
 class FrameBuffer:
   def __init__(self, buffer_id: str, roi: vc.Rect, max_capacity: int, timestamp: float):
+    """Initialize a thread-safe frame buffer for a specific region of interest.
+
+    Args:
+      buffer_id: Unique identifier for the buffer.
+      roi: The region of interest (ROI) associated with this buffer.
+      max_capacity: The maximum number of frames the buffer can hold.
+      timestamp: The creation timestamp of the buffer.
+    """
     self.id = buffer_id
     self.roi = roi
     self.created_at = timestamp
@@ -51,6 +59,12 @@ class FrameBuffer:
     return len(self.buffer)
 
   def append(self, frame: np.ndarray, context: InferenceContext):
+    """Add a frame and its metadata to the buffer, maintaining max capacity.
+
+    Args:
+      frame: The parsed RGB image data.
+      context: Metadata including timestamp and ROI.
+    """
     self.buffer.append((frame, context))
     self.last_seen = context.timestamp
     if len(self.buffer) > self.max_capacity:
@@ -58,6 +72,14 @@ class FrameBuffer:
       self.buffer = self.buffer[overflow:]
 
   def execute(self, take_count: int, keep_count: int) -> list:
+    """Extract frames for inference and manage buffer overlap.
+
+    Args:
+      take_count: Number of frames to extract for the current batch.
+      keep_count: Number of frames to retain for the next sliding window.
+    Returns:
+      payload: A list of (frame, context) tuples, or None if insufficient frames.
+    """
     if take_count <= 0 or len(self.buffer) < take_count:
       return None
     payload = self.buffer[:take_count]
@@ -66,8 +88,13 @@ class FrameBuffer:
     return payload\
 
 class BufferManager:
-  """Thread-safe buffer manager."""
+  """Thread-safe manager for multiple streaming frame buffers."""
   def __init__(self, buffer_config: vc.BufferConfig):
+    """Initialize the manager with specific buffering and overlap constraints.
+
+    Args:
+      buffer_config: Configuration for stream window sizes and overlaps.
+    """
     self.buffer_planner = vc.BufferPlanner(buffer_config)
     self.buffer_config = buffer_config
     self.buffers = {}
@@ -84,6 +111,14 @@ class BufferManager:
     ]
 
   def register_target(self, target_roi: vc.Rect, timestamp: float):
+    """Register or update a target ROI in the buffer planner.
+
+    Args:
+      target_roi: The latest detected face ROI to track.
+      timestamp: The current frame timestamp.
+    Returns:
+      buffer_id: The ID of the buffer assigned to this target, or None.
+    """
     with self.lock:
       self.current_timestamp = max(self.current_timestamp, timestamp)
       action = self.buffer_planner.evaluate_target(target_roi, timestamp, self._get_active_metadata())
@@ -100,12 +135,26 @@ class BufferManager:
       return None
 
   def append(self, buffer_id: str, frame: np.ndarray, context: InferenceContext):
+    """Route a frame to a specific active buffer.
+
+    Args:
+      buffer_id: The identifier for the target buffer.
+      frame: The parsed RGB image data.
+      context: Metadata including timestamp and ROI.
+    """
     with self.lock:
       self.current_timestamp = max(self.current_timestamp, context.timestamp)
       if buffer_id in self.buffers:
         self.buffers[buffer_id].append(frame, context)
 
   def poll(self, flush: bool = False):
+    """Poll the planner for the next required inference command.
+
+    Args:
+      flush: If True, forces the planner to return commands for remaining data.
+    Returns:
+      command: A vc.InferenceCommand containing the buffer ID and frame counts.
+    """
     with self.lock:
       has_state = self.state is not None
       plan = self.buffer_planner.poll(
@@ -121,30 +170,62 @@ class BufferManager:
       return plan.command
 
   def execute(self, command: vc.InferenceCommand) -> list:
+    """Execute a specific inference command by extracting data from the relevant buffer.
+
+    Args:
+      command: The command containing buffer ID and frame counts.
+    Returns:
+      window: A list of frames and contexts ready for inference.
+    """
     with self.lock:
       if command.buffer_id in self.buffers:
         return self.buffers[command.buffer_id].execute(command.take_count, command.keep_count)
       return None
 
   def get_state(self):
+    """Retrieve the current physiological state of the rPPG model.
+
+    Returns:
+      state: The model's internal state vector or None.
+    """
     with self.lock:
       return self.state
 
   def update_state(self, new_state):
+    """Update the internal state of the rPPG model after an inference step.
+
+    Args:
+      new_state: The updated state vector returned by the API.
+    """
     with self.lock:
       self.state = new_state
 
   def get_all_buffers(self):
+    """Get a list of all currently active buffers.
+
+    Returns:
+      buffers: A list of (buffer_id, roi) tuples.
+    """
     with self.lock:
       return [(buf.id, buf.roi) for buf in self.buffers.values()]
 
   def reset(self):
+    """Clear all active buffers and reset the model state."""
     with self.lock:
       self.buffers.clear()
       self.state = None
 
 class StreamSession:
+  """Context manager handling background inference and buffer synchronization for live streams."""
   def __init__(self, rppg_method, face_detector=None, fdet_fs=1.0, on_result: Optional[Callable] = None):
+    """Initialize the streaming session and start the background inference thread.
+
+    Args:
+      rppg_method: The method instance (e.g., VitalLensRPPGMethod) to use.
+      face_detector: Optional instance of FaceDetector for automatic tracking.
+      fdet_fs: Frequency [Hz] at which to run automatic face detection.
+      on_result: Optional callback for asynchronous result handling.
+    """
     self.rppg = rppg_method
     self.face_detector = face_detector
     self.fdet_fs = fdet_fs
@@ -167,12 +248,19 @@ class StreamSession:
     self.close()
 
   def close(self):
+    """Stop the background thread and shut down the streaming session."""
     self.running = False
     if self.thread.is_alive():
       self.thread.join(timeout=2.0)
 
   def push(self, frame: np.ndarray, timestamp: float, face: np.ndarray = None):
-    """Pushes a single frame to the ingestion pipeline on the main thread."""
+    """Push a single frame and its timestamp into the streaming pipeline.
+
+    Args:
+      frame: The input video frame of shape (h, w, 3) in RGB format.
+      timestamp: The absolute timestamp of the frame in seconds.
+      face: Optional pre-detected face box [x0, y0, x1, y1].
+    """
     if not self.running: return
     # Throttled face detection
     min_interval = 1.0 / self.rppg.fps_target
@@ -235,14 +323,21 @@ class StreamSession:
       self.buffer_manager.append(buf_id, payload, ctx)
 
   def get_result(self, block=False, timeout=None):
-    """Pulls the latest result from the queue."""
+    """Pull the latest inference results from the session queue.
+
+    Args:
+      block: Whether to block until a result is available.
+      timeout: Maximum time to block if block is True.
+    Returns:
+      results: A list of analysis results for detected faces.
+    """
     try:
       return self.result_queue.get(block=block, timeout=timeout)
     except queue.Empty:
       return None
 
   def _inference_loop(self):
-    """Background thread executing inference without blocking the webcam."""
+    """Background loop that polls for ready buffers and executes model inference."""
     while self.running:
       command = self.buffer_manager.poll()
       if not command:
@@ -279,7 +374,13 @@ class StreamSession:
         self.vc_session.reset()
 
   def _format_result(self, session_result):
-    # TODO: Is there a smarter way to do this?
+    """Format the raw session result into the standard vitallens-python result dictionary.
+
+    Args:
+      session_result: The vc.SessionResult object from vitallens-core.
+    Returns:
+      res_dict: A list containing a formatted results dictionary for the face.
+    """
     face_dict = {
       'coordinates': [], 
       'confidence': [], 
