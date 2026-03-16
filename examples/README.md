@@ -97,6 +97,51 @@ video_arr = np.array(frames)
 results = vl(video_arr, fps=fps)
 ```
 
+### Real-time Streaming
+
+For live feeds or webcams. There are two ways to handle results:
+
+#### Polling (Non-blocking)
+
+Best for applications with their own main loop (e.g., OpenCV display).
+
+```python
+import time
+from vitallens import VitalLens
+
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
+
+with vl.stream() as session:
+    while True:
+        frame, ts = get_frame() # Your capture logic
+        session.push(frame, timestamp=ts)
+        
+        # Check for results whenever you want
+        results = session.get_result(block=False)
+        if results:
+            print(results[0]['vitals']['heart_rate']['value'])
+```
+
+#### Callback
+
+Best for event-driven applications. The callback is triggered automatically as soon as inference finishes.
+
+```python
+import time
+from vitallens import VitalLens
+
+def my_callback(results):
+    print(f"Callback received HR: {results[0]['vitals']['heart_rate']['value']}")
+
+vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
+
+with vl.stream(on_result=my_callback) as session:
+    while True:
+        frame, ts = get_frame()
+        session.push(frame, timestamp=ts)
+        # No need to call get_result()
+```
+
 ## Running with Docker
 
 If you encounter dependency issues (e.g., with `onnxruntime` or `ffmpeg`), you can run the example scripts inside our Docker container.

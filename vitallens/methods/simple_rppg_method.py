@@ -123,7 +123,19 @@ class SimpleRPPGMethod(RPPGMethod):
       fps: float,
       state
     ):
-    """TODO"""
+    """Estimate pulse signal from a sequence of frames in a streaming context.
+
+    Args:
+      frames: The input video frames of shape (n_frames, h, w, 3).
+      fps: The sampling frequency of the input frames.
+      state: The internal state of the rPPG method (unused for simple methods).
+    Returns:
+      Tuple of
+        - sig_dict: A dictionary of the estimated signals.
+        - conf_dict: A dictionary of the estimated confidences.
+        - live_out: Dummy live confidence estimation (set to always 1). Shape (n_frames,)
+        - state: The updated internal state of the rPPG method (None).
+    """
     sig = self.algorithm(frames, fps)
     sig_dict = {'ppg_waveform': sig}
     conf_dict = {'ppg_waveform': np.ones_like(sig)}

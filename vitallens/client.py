@@ -250,8 +250,36 @@ class VitalLens:
     return results
   
   def stream(self, on_result: Callable = None) -> StreamSession:
-    """
-    Returns a StreamSession context manager for real-time video processing.
+    """Returns a context manager for real-time vital sign estimation.
+
+    This method creates a `StreamSession` that manages background inference threads,
+    sliding window buffers, and signal state via `vitallens-core`. It is designed 
+    for low-latency applications like webcam feeds.
+
+    Usage:
+      ```python
+      with vl.stream() as session:
+          session.push(frame, timestamp)
+          results = session.get_result(block=False)
+      ```
+
+    Args:
+      on_result: An optional callback function triggered automatically whenever 
+        new inference results are available. The function should accept one 
+        argument (the results list).
+
+    Returns:
+      session: A `StreamSession` context manager. The session object provides:
+        * `push(frame, timestamp, face=None)`: Ingests a new RGB frame. 
+          `timestamp` should be in seconds (e.g., `time.time()`).
+        * `get_result(block=False, timeout=None)`: Pulls the latest analysis 
+          results from the queue.
+        * `current_face`: The most recently detected face coordinates.
+
+    Note:
+      The results returned by `get_result()` or the callback follow the same 
+      format as `__call__`, but represent the physiological state of the 
+      current sliding window rather than a global file average.
     """
     return StreamSession(
       rppg_method=self.rppg,
