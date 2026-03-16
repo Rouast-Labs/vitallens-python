@@ -70,7 +70,7 @@ def create_mock_api_response(
   api_key = headers.get("x-api-key")
   if api_key is None or not isinstance(api_key, str) or len(api_key) < 30:
     return create_mock_response(
-      status_code=403, json_data={"vital_signs": None, "face": None, "state": None, "message": "Error"}) 
+      status_code=403, json_data={"vitals": None, "waveforms": None, "face": None, "state": None, "message": "Error"}) 
   if api_key == "QUOTA_EXCEEDED":
     return create_mock_response(
       status_code=429, json_data={"message": "Quota Exceeded"})
@@ -81,12 +81,12 @@ def create_mock_api_response(
   video_base64 = json["video"]
   if video_base64 is None:
     return create_mock_response(
-      status_code=400, json_data={"vital_signs": None, "face": None, "state": None, "message": "Error"})
+      status_code=400, json_data={"vitals": None, "waveforms": None, "face": None, "state": None, "message": "Error"})
   try:
     video = np.frombuffer(base64.b64decode(video_base64), dtype=np.uint8)
     video = video.reshape((-1, 40, 40, 3))
   except Exception as e:
-    return create_mock_response(status_code=422, json_data={"vital_signs": None, "face": None, "state": None, "message": f"Unprocessable video: {e}"})
+    return create_mock_response(status_code=422, json_data={"vitals": None, "waveforms": None, "face": None, "state": None, "message": f"Unprocessable video: {e}"})
   n_frames = video.shape[0]
   if "state" in json:
     n_frames_out = n_frames - 4
@@ -97,7 +97,7 @@ def create_mock_api_response(
   min_frames = 5 if "state" in json else API_MIN_FRAMES
   if n_frames < min_frames or n_frames > API_MAX_FRAMES:
     return create_mock_response(status_code=400, json_data={"message": "Incorrect number of frames."})
-  vital_signs_data = {
+  vitals_data = {
     "heart_rate": {"value": 60.0, "unit": "bpm", "confidence": 0.99, "note": "Note"},
     "respiratory_rate": {"value": 15.0, "unit": "bpm", "confidence": 0.97, "note": "Note"}
   }
@@ -106,13 +106,13 @@ def create_mock_api_response(
     "respiratory_waveform": {"data": np.random.rand(n_frames_out).tolist(), "unit": "unitless", "confidence": np.ones(n_frames_out).tolist(), "note": "Note"}
   }
   if 'vitallens-2.0' in model:
-    vital_signs_data["hrv_sdnn"] = {"value": 45.0, "unit": "ms", "confidence": 0.95, "note": "Note"}
-    vital_signs_data["hrv_rmssd"] = {"value": 35.0, "unit": "ms", "confidence": 0.96, "note": "Note"}
-    vital_signs_data["hrv_lfhf"] = {"value": 1.5, "unit": "unitless", "confidence": 0.92, "note": "Note"}
+    vitals_data["hrv_sdnn"] = {"value": 45.0, "unit": "ms", "confidence": 0.95, "note": "Note"}
+    vitals_data["hrv_rmssd"] = {"value": 35.0, "unit": "ms", "confidence": 0.96, "note": "Note"}
+    vitals_data["hrv_lfhf"] = {"value": 1.5, "unit": "unitless", "confidence": 0.92, "note": "Note"}
   return create_mock_response(
     status_code=200,
     json_data={
-      "vital_signs": vital_signs_data,
+      "vitals": vitals_data,
       "waveforms": waveforms_data,
       "face": {"confidence": np.random.rand(n_frames_out).tolist(), "note": "Note"},
       "state": {"data": np.zeros((256,), dtype=np.float32).tolist(), "note": "Note"},
@@ -247,7 +247,7 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   response = requests.post(API_FILE_URL, headers=headers, json=payload)
   response_body = json.loads(response.text)
   assert response.status_code == 200
-  assert all(key in response_body for key in ["face", "vital_signs", "waveforms", "state", "message"])
+  assert all(key in response_body for key in ["face", "vitals", "waveforms", "state", "message"])
   waveforms = response_body["waveforms"]
   assert all(key in waveforms for key in ["ppg_waveform", "respiratory_waveform"])
   ppg_waveform_data = np.asarray(waveforms["ppg_waveform"]["data"])
@@ -258,25 +258,25 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   assert ppg_waveform_conf.shape == (n_frames,)
   assert resp_waveform_data.shape == (n_frames,)
   assert resp_waveform_conf.shape == (n_frames,)
-  vital_signs = response_body["vital_signs"]
+  vitals = response_body["vitals"]
   if process_signals and n_frames >= 150:
-    assert "heart_rate" in vital_signs
+    assert "heart_rate" in vitals
   else: 
-    assert "heart_rate" not in vital_signs
+    assert "heart_rate" not in vitals
   if process_signals and n_frames >= 300:
-    assert "respiratory_rate" in vital_signs
+    assert "respiratory_rate" in vitals
   else: 
-    assert "respiratory_rate" not in vital_signs
+    assert "respiratory_rate" not in vitals
   if process_signals and n_frames >= 600:
-    assert "hrv_sdnn" in vital_signs
-    assert "hrv_rmssd" in vital_signs
+    assert "hrv_sdnn" in vitals
+    assert "hrv_rmssd" in vitals
   else: 
-    assert "hrv_sdnn" not in vital_signs
-    assert "hrv_rmssd" not in vital_signs
+    assert "hrv_sdnn" not in vitals
+    assert "hrv_rmssd" not in vitals
   if process_signals and n_frames >= 1650:
-    assert "hrv_lfhf" in vital_signs
+    assert "hrv_lfhf" in vitals
   else: 
-    assert "hrv_lfhf" not in vital_signs
+    assert "hrv_lfhf" not in vitals
   live = np.asarray(response_body["face"]["confidence"])
   assert live.shape == (n_frames,)
   state = np.asarray(response_body["state"]["data"])
@@ -350,7 +350,7 @@ def test_proxy_and_auth_offloading(mock_get, mock_post, request):
       }
   })
   mock_post.return_value = create_mock_response(200, {
-    "vital_signs": {},
+    "vitals": {},
     "waveforms": {
         "ppg_waveform": {"data": [0.1]*16, "confidence": [1.0]*16}, 
         "respiratory_waveform": {"data": [0.1]*16, "confidence": [1.0]*16}
