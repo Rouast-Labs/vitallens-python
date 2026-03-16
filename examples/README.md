@@ -3,6 +3,15 @@
 <!-- mkdocs-start -->
 The `examples/` folder contains sample scripts and video data to help you evaluate `vitallens` against ground truth data, run it in Docker, or integrate it into your own pipeline.
 
+## Real-time Webcam Demo (`live.py`)
+
+This script opens your webcam and streams frames to the API in chunks.
+
+```bash
+pip install opencv-python
+python examples/live.py --method=vitallens --api_key=YOUR_API_KEY
+```
+
 ## Evaluation Script (`test.py`)
 
 This directory contains sample scripts and video data to help you evaluate `vitallens` against ground truth data, run it in Docker, or integrate it into your own pipeline.
@@ -113,15 +122,4 @@ Since the plot cannot display inside the container, copy it out after running:
 
 ```bash
 docker cp <container_id>:/app/results.png .
-```
-
-## Real-time Webcam Demo (`live.py`)
-
-> **Note:** This script is experimental and optimized for testing the `Mode.BURST` functionality.
-
-This script opens your webcam and streams frames to the API in chunks.
-
-```bash
-pip install opencv-python
-python examples/live.py --method=vitallens --api_key=YOUR_API_KEY
 ```

@@ -1,23 +1,3 @@
-# Copyright (c) Rouast Labs
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 import base64
 import json
 import numpy as np
@@ -197,7 +177,7 @@ def test_VitalLensRPPGMethod_ndarray_mock(mock_post, mock_resolve_config, reques
   assert conf['respiratory_waveform'].shape == (test_video_ndarray.shape[0],)
   assert live.shape == (test_video_ndarray.shape[0],)
 
-@patch('requests.post')
+@patch('requests.Session.post')
 def test_VitalLensRPPGMethod_stream_mock(mock_post, mock_resolve_config, request):
   api_key = request.getfixturevalue('test_dev_api_key')
   method = VitalLensRPPGMethod(
@@ -356,7 +336,7 @@ def test_VitalLensRPPGMethod_init_errors(mock_resolve):
   with pytest.raises(VitalLensAPIError, match="Test server error"):
     VitalLensRPPGMethod(api_key="any_key", requested_model_name="vitallens")
 
-@patch('requests.post')
+@patch('requests.Session.post')
 @patch('requests.get')
 def test_proxy_and_auth_offloading(mock_get, mock_post, request):
   """Verify that proxies are passed and headers are handled correctly."""

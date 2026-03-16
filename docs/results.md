@@ -23,7 +23,7 @@ Each face entry follows this structure. Note that strict types (like `np.ndarray
       "confidence": [0.6115, 0.9207, 0.9183, ...],
       "note": "Face detection coordinates..."
     },
-    "vital_signs": {
+    "vitals": {
       "heart_rate": {
         "value": 60.5,
         "unit": "bpm",
@@ -41,6 +41,14 @@ Each face entry follows this structure. Note that strict types (like `np.ndarray
         "unit": "ms",
         "confidence": 0.8712,
         "note": "Global estimate of Heart Rate Variability (SDNN)..."
+      }
+    },
+    "waveforms": {
+      "ppg_waveform": {
+        "data": [0.1, -0.2, ...],
+        "unit": "unitless",
+        "confidence": [0.9, 0.9, ...],
+        "note": "..."
       }
     },
     "message": "The provided values are estimates..."

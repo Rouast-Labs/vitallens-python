@@ -106,17 +106,15 @@ class VitalLensRPPGMethod(RPPGMethod):
       proxies: Dictionary mapping protocol to the URL of the proxy
     """
     super(VitalLensRPPGMethod, self).__init__()
-    
     if proxies is None and (api_key is None or api_key == ''):
       raise VitalLensAPIKeyError()
     self.api_key = api_key
     self.proxies = proxies
-
     self.session_config = _resolve_model_config(api_key=api_key, model_name=requested_model_name, proxies=proxies)
     self.parse_config(self.session_config)
-
     self.resolved_model = self.session_config.model_name
     self.requested_model_name = requested_model_name if requested_model_name != "vitallens" else None
+    self.http_session = requests.Session()
 
   def parse_config(self, config: vc.SessionConfig):
     """Set properties based on the config.
@@ -245,7 +243,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     compressed_data = gzip.compress(raw_rgb_bytes)
 
     # Post the binary payload
-    response = requests.post(API_STREAM_URL, headers=headers, data=compressed_data, proxies=self.proxies)
+    response = self.http_session.post(API_STREAM_URL, headers=headers, data=compressed_data, proxies=self.proxies)
 
     if response.status_code != 200:
       response_body = response.json()
@@ -261,9 +259,10 @@ class VitalLensRPPGMethod(RPPGMethod):
     for name, obj in api_waveforms.items():
       if 'data' in obj:
         sig_dict[name] = np.asarray(obj['data'])
-        conf_dict[name] = np.asarray(obj.get('confidence', [1.0] * frames.shape[0]))
+        conf_dict[name] = np.asarray(obj.get('confidence', [1.0] * len(sig_dict[name])))
 
-    live = np.asarray(response_body.get("face", {}).get("confidence", [1.0] * frames.shape[0]))
+    n_res = len(next(iter(sig_dict.values()))) if sig_dict else frames.shape[0]
+    live = np.asarray(response_body.get("face", {}).get("confidence", [1.0] * n_res))
     new_state = response_body.get("state", {}).get("data")
 
     return sig_dict, conf_dict, live, new_state
@@ -346,7 +345,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     if self.requested_model_name:
       payload['model'] = self.requested_model_name
     # Ask API to process video
-    response = requests.post(API_FILE_URL, headers=headers, json=payload, proxies=self.proxies)
+    response = self.http_session.post(API_FILE_URL, headers=headers, json=payload, proxies=self.proxies)
     response_body = json.loads(response.text)
     # Check if call was successful
     if response.status_code != 200:
