@@ -66,3 +66,57 @@ python -m build
 ```
 
 The artifacts will be generated in the `dist/` directory.
+
+Since this is a Python project using `setuptools_scm`, versioning is handled automatically based on git tags. I've adapted the workflow from your JS library to Python conventions while maintaining the same straightforward structure.
+
+Add this section to the end of your `CONTRIBUTING.md`:
+
+---
+
+## Releases
+
+Releases are automated via GitHub Actions and triggered by pushing git tags. The project uses `setuptools_scm`, so the version is derived directly from the tag name.
+
+### Prerelease (Beta)
+
+Use this to test new features without affecting stable users on PyPI.
+
+1. Ensure your changes are merged into `main`.
+2. Switch to `main` locally and pull the latest:
+  ```bash
+  git switch main
+  git pull origin main
+  ```
+3. Create and push a beta tag (e.g., `v1.2.0-beta.1`):
+  ```bash
+  git tag -a v1.2.0-beta.1 -m "v1.2.0-beta.1"
+  git push origin v1.2.0-beta.1
+  ```
+
+The CI will automatically publish to PyPI and create a GitHub prerelease.
+
+### Production Release
+
+1. Ensure the `main` branch is ready for production.
+2. Switch to `main` locally and pull the latest:
+  ```bash
+  git switch main
+  git pull origin main
+  ```
+3. Create and push a production tag (must start with `v`):
+  ```bash
+  git tag -a v1.2.0 -m "v1.2.0"
+  git push origin v1.2.0
+  ```
+
+The CI will build the distribution archives, publish to PyPI, and create a stable GitHub Release with generated release notes.
+
+### Syncing back to Dev
+
+After any release, ensure the tags are available in your development branch to keep `setuptools_scm` versions in sync:
+
+```bash
+git switch dev
+git merge main
+git push origin dev
+```
