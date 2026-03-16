@@ -45,7 +45,7 @@ from vitallens import VitalLens
 vl = VitalLens(method="pos")
 
 results = vl("path/to/video.mp4")
-print("Heart Rate:", results[0]['vital_signs']['heart_rate']['value'])
+print("Heart Rate:", results[0]['vitals']['heart_rate']['value'])
 ```
 
 ### Get High-Fidelity Accuracy (with API Key)
@@ -59,7 +59,7 @@ from vitallens import VitalLens, Method
 vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
 
 results = vl("path/to/video.mp4")
-vitals = results[0]['vital_signs']
+vitals = results[0]['vitals']
 
 print(f"Heart Rate:       {vitals['heart_rate']['value']:.1f} bpm")
 print(f"Respiratory Rate: {vitals['respiratory_rate']['value']:.1f} rpm")

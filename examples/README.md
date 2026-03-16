@@ -63,7 +63,7 @@ vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
 results = vl("path/to/video.mp4")
 
 # Access results
-print("Heart Rate:", results[0]['vital_signs']['heart_rate']['value'])
+print("Heart Rate:", results[0]['vitals']['heart_rate']['value'])
 ```
 
 ### Processing Raw Frames (Numpy/OpenCV)
