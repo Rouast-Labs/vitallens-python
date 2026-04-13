@@ -29,7 +29,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pyyaml>=6.0.1",
     "requests>=2.32.0",
-    "vitallens-core==0.2.3",
+    "vitallens-core==0.2.5",
 ]
 dynamic = ["version"]
 
