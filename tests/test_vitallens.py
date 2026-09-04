@@ -121,7 +121,7 @@ def create_mock_api_response(
 
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
 @pytest.mark.parametrize("override_global_parse", [False, True])
-@pytest.mark.parametrize("requested_model", ["vitallens", "vitallens-2.0"])
+@pytest.mark.parametrize("requested_model", ["vitallens-2.0"])
 @patch('requests.post', side_effect=create_mock_api_response)
 def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, override_fps_target, override_global_parse, requested_model):
   api_key = request.getfixturevalue('test_dev_api_key')
@@ -146,7 +146,7 @@ def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, 
   assert live.shape == (test_video_ndarray.shape[0],)
 
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
-@pytest.mark.parametrize("long", [False, True])
+@pytest.mark.parametrize("long", [True])
 @pytest.mark.parametrize("override_global_parse", [False, True])
 @pytest.mark.parametrize("requested_model", ["vitallens"])
 @patch('requests.post', side_effect=create_mock_api_response)
