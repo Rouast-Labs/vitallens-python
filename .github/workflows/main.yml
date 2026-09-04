@@ -8,7 +8,10 @@ on:
 
 jobs:
   linux:
-
+    # Skip only a same-repo PR whose head branch is dev -- that exact commit
+    # was already tested by the push trigger above. Everything else
+    # (external PRs, Dependabot) still runs normally.
+    if: github.event_name != 'pull_request' || github.head_ref != 'dev'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -58,7 +61,7 @@ jobs:
           pytest
 
   windows:
-
+    if: github.event_name != 'pull_request' || github.head_ref != 'dev'
     runs-on: windows-latest
     steps:
       - name: Checkout vitallens-python
