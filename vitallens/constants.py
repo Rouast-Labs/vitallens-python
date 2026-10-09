@@ -24,6 +24,7 @@ load_dotenv()
 
 # API settings
 API_MIN_FRAMES = 16
+# TODO: 900 assumes 40x40 inputs. Derive /file split length from vc.compute_buffer_config(...).file_max (input_size aware, ~625 at 48x48).
 API_MAX_FRAMES = 900
 API_OVERLAP = 30
 API_FILE_URL = "https://api.rouast.com/vitallens-v3/file"
