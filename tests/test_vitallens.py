@@ -1,6 +1,7 @@
 import base64
 import json
 import numpy as np
+import os
 from prpy.numpy.image import parse_image_inputs
 import pytest
 import requests
@@ -13,6 +14,10 @@ sys.path.append('../vitallens-python')
 from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_FILE_URL, API_RESOLVE_URL, API_RESOLVE_TIMEOUT, API_STREAM_TIMEOUT, API_FILE_TIMEOUT
 from vitallens.methods.vitallens import VitalLensRPPGMethod, _resolve_model_config
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIError, VitalLensAPIQuotaExceededError
+
+# The CI jobs share one dev API key and its rate limit. The heavy real-API tests (many requests in a
+# short time) therefore run in one CI job only, which sets VITALLENS_HEAVY_E2E. Set it locally to run them.
+heavy_e2e = pytest.mark.skipif(not os.getenv("VITALLENS_HEAVY_E2E"), reason="Set VITALLENS_HEAVY_E2E=1 to run heavy real-API tests")
 
 # The mocked API only accepts keys of a plausible length, like the real one. Not a real key.
 FAKE_API_KEY = "fake-api-key-for-mocked-tests-0000000000"
@@ -287,6 +292,7 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   assert state.shape == (256,)
 
 @pytest.mark.integration
+@heavy_e2e
 def test_VitalLensRPPGMethod_large_upload_with_the_real_api(request):
   """A multi-request /file upload with the real API.
 

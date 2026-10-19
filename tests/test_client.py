@@ -43,6 +43,10 @@ def test_VitalLens(request, method_arg, detect_faces, file, export):
     assert data[0]['vitals']['heart_rate']['confidence'] == 1.0
     os.remove(test_json_path)
 
+# The CI jobs share one dev API key and its rate limit. The heavy real-API tests (many requests in a
+# short time) therefore run in one CI job only, which sets VITALLENS_HEAVY_E2E. Set it locally to run them.
+heavy_e2e = pytest.mark.skipif(not os.getenv("VITALLENS_HEAVY_E2E"), reason="Set VITALLENS_HEAVY_E2E=1 to run heavy real-API tests")
+
 @pytest.mark.integration
 def test_VitalLens_API(request):
   api_key = request.getfixturevalue('test_dev_api_key')
@@ -69,6 +73,7 @@ def test_VitalLens_API(request):
   assert not os.path.exists("test.json")
 
 @pytest.mark.integration
+@heavy_e2e
 def test_VitalLens_API_stream(request):
   """Streams a video through the real API: frames in, results out, with state carried across requests."""
   api_key = request.getfixturevalue('test_dev_api_key')
