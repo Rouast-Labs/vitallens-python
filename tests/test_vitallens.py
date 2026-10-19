@@ -14,6 +14,9 @@ from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_FILE_URL, AP
 from vitallens.methods.vitallens import VitalLensRPPGMethod, _resolve_model_config
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIError, VitalLensAPIQuotaExceededError
 
+# The mocked API only accepts keys of a plausible length, like the real one. Not a real key.
+FAKE_API_KEY = "fake-api-key-for-mocked-tests-0000000000"
+
 def create_mock_response(
     status_code: int,
     json_data: dict
@@ -122,9 +125,9 @@ def create_mock_api_response(
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
 @pytest.mark.parametrize("override_global_parse", [False, True])
 @pytest.mark.parametrize("requested_model", ["vitallens-2.0"])
-@patch('requests.post', side_effect=create_mock_api_response)
+@patch('requests.Session.post', side_effect=create_mock_api_response)
 def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, override_fps_target, override_global_parse, requested_model):
-  api_key = request.getfixturevalue('test_dev_api_key')
+  api_key = FAKE_API_KEY
   test_video_path = request.getfixturevalue('test_video_path')
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_faces = request.getfixturevalue('test_video_faces')
@@ -149,9 +152,9 @@ def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, 
 @pytest.mark.parametrize("long", [True])
 @pytest.mark.parametrize("override_global_parse", [False, True])
 @pytest.mark.parametrize("requested_model", ["vitallens"])
-@patch('requests.post', side_effect=create_mock_api_response)
+@patch('requests.Session.post', side_effect=create_mock_api_response)
 def test_VitalLensRPPGMethod_ndarray_mock(mock_post, mock_resolve_config, request, long, override_fps_target, override_global_parse, requested_model):
-  api_key = request.getfixturevalue('test_dev_api_key')
+  api_key = FAKE_API_KEY
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
   test_video_faces = request.getfixturevalue('test_video_faces')
@@ -229,6 +232,7 @@ def test_VitalLensRPPGMethod_stream_mock(mock_post, mock_resolve_config, request
   assert 'X-State' in kwargs2['headers']
   assert kwargs2['headers']['x-api-key'] == api_key
 
+@pytest.mark.integration
 @pytest.mark.parametrize("process_signals", [True, False])
 @pytest.mark.parametrize("n_frames", [16, 250])
 def test_VitalLens_API_valid_response(request, process_signals, n_frames):
@@ -282,6 +286,40 @@ def test_VitalLens_API_valid_response(request, process_signals, n_frames):
   state = np.asarray(response_body["state"]["data"])
   assert state.shape == (256,)
 
+@pytest.mark.integration
+def test_VitalLensRPPGMethod_large_upload_with_the_real_api(request):
+  """A multi-request /file upload with the real API.
+
+  Deliberately not mocked: whether a few MB of video can be sent within the request timeout only
+  shows up on a real connection. A timeout that applied to the upload as a whole (the `requests`
+  library sends the body within the connect timeout) once cut such uploads off.
+  """
+  api_key = request.getfixturevalue('test_dev_api_key')
+  test_video_ndarray = request.getfixturevalue('test_video_ndarray')
+  test_video_fps = request.getfixturevalue('test_video_fps')
+  test_video_faces = request.getfixturevalue('test_video_faces')
+  method = VitalLensRPPGMethod(api_key=api_key, requested_model_name="vitallens")
+  n_repeats = (API_MAX_FRAMES * 3) // test_video_ndarray.shape[0] + 1
+  video = np.repeat(test_video_ndarray, repeats=n_repeats, axis=0)
+  faces = np.repeat(test_video_faces, repeats=n_repeats, axis=0)
+  data, conf, live = method.infer_batch(inputs=video, faces=faces, fps=test_video_fps)
+  assert data['ppg_waveform'].shape == (video.shape[0],)
+  assert conf['ppg_waveform'].shape == (video.shape[0],)
+  assert live.shape == (video.shape[0],)
+
+def test_file_timeout_lets_slow_uplinks_finish():
+  """The /file upload budget must allow a full chunk to be sent over a slow mobile link."""
+  chunk_bytes = API_MAX_FRAMES * 40 * 40 * 3 * 4 / 3  # base64 in the JSON payload
+  slow_uplink_bytes_per_s = 0.2e6 / 8  # 0.2 Mbit/s
+  assert chunk_bytes / slow_uplink_bytes_per_s <= API_FILE_TIMEOUT[0]
+
+def test_stream_timeout_lets_a_normal_request_finish():
+  """A /stream request (a few dozen frames, gzip-compressed) must fit the budget on 1 Mbit/s."""
+  request_bytes = 100 * 40 * 40 * 3  # a long queue of 100 frames, uncompressed
+  uplink_bytes_per_s = 1e6 / 8
+  assert request_bytes / uplink_bytes_per_s <= API_STREAM_TIMEOUT[0]
+
+@pytest.mark.integration
 def test_VitalLens_API_wrong_api_key(request):
   test_video_ndarray = request.getfixturevalue('test_video_ndarray')
   test_video_fps = request.getfixturevalue('test_video_fps')
@@ -294,6 +332,7 @@ def test_VitalLens_API_wrong_api_key(request):
   response = requests.post(API_FILE_URL, headers=headers, json=payload)
   assert response.status_code == 403
 
+@pytest.mark.integration
 def test_VitalLens_API_no_video(request):
   api_key = request.getfixturevalue('test_dev_api_key')
   headers = {"x-api-key": api_key}
@@ -301,6 +340,7 @@ def test_VitalLens_API_no_video(request):
   response = requests.post(API_FILE_URL, headers=headers, json=payload)
   assert response.status_code == 400
 
+@pytest.mark.integration
 def test_VitalLens_API_no_parseable_video(request):
   api_key = request.getfixturevalue('test_dev_api_key')
   headers = {"x-api-key": api_key}
@@ -320,11 +360,14 @@ def test_resolve_model_config_errors():
     with pytest.raises(VitalLensAPIError, match="Server Error"):
       _resolve_model_config("valid_key", "vitallens")
 
-def test_VitalLens_API_integration(mock_resolve_config, request):
+@pytest.mark.integration
+def test_VitalLens_API_resolve_model(request):
+  """Resolves the model with the real API."""
   api_key = request.getfixturevalue('test_dev_api_key')
   method = VitalLensRPPGMethod(requested_model_name="vitallens", api_key=api_key)
-  assert method.resolved_model == 'vitallens-2.0'
+  assert method.resolved_model.startswith('vitallens')
   assert method.input_size == 40
+  assert method.fps_target > 0
 
 @patch('vitallens.methods.vitallens._resolve_model_config')
 def test_VitalLensRPPGMethod_init_errors(mock_resolve):
