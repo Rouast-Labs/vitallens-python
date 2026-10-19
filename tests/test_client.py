@@ -2,6 +2,7 @@ import json
 import numpy as np
 import os
 import pytest
+import time
 from unittest.mock import patch
 
 import sys
@@ -42,6 +43,7 @@ def test_VitalLens(request, method_arg, detect_faces, file, export):
     assert data[0]['vitals']['heart_rate']['confidence'] == 1.0
     os.remove(test_json_path)
 
+@pytest.mark.integration
 def test_VitalLens_API(request):
   api_key = request.getfixturevalue('test_dev_api_key')
   vl = VitalLens(method=Method.VITALLENS, api_key=api_key, detect_faces=True, export_to_json=False)
@@ -65,6 +67,34 @@ def test_VitalLens_API(request):
     np.testing.assert_allclose(result[0]['vitals']['hrv_sdnn']['value'], 40, atol=20)
     np.testing.assert_allclose(result[0]['vitals']['hrv_rmssd']['value'], 30, atol=20)
   assert not os.path.exists("test.json")
+
+@pytest.mark.integration
+def test_VitalLens_API_stream(request):
+  """Streams a video through the real API: frames in, results out, with state carried across requests."""
+  api_key = request.getfixturevalue('test_dev_api_key')
+  test_video_ndarray = request.getfixturevalue('test_video_ndarray')
+  test_video_fps = request.getfixturevalue('test_video_fps')
+  test_video_faces = request.getfixturevalue('test_video_faces')
+  vl = VitalLens(method=Method.VITALLENS, api_key=api_key, export_to_json=False)
+  results = []
+  n_frames = 360  # 12 s: enough for a heart rate
+  with vl.stream() as session:
+    for i in range(n_frames):
+      # Paced like a camera: the stream buffer drops frames if they arrive faster than the API can take them
+      session.push(test_video_ndarray[i], timestamp=i / test_video_fps, face=test_video_faces[i])
+      time.sleep(1 / test_video_fps)
+    # Collect what the background thread processed, until it has gone quiet
+    while True:
+      result = session.get_result(block=True, timeout=20)
+      if result is None:
+        break
+      results.extend(result)
+  assert len(results) > 0
+  n_samples = sum(len(r['waveforms']['ppg_waveform']['data']) for r in results if 'ppg_waveform' in r['waveforms'])
+  assert n_samples > 0.6 * n_frames
+  with_hr = [r for r in results if 'heart_rate' in r['vitals']]
+  assert len(with_hr) > 0
+  np.testing.assert_allclose(with_hr[-1]['vitals']['heart_rate']['value'], 60, atol=10)
 
 def test_VitalLens_proxies():
   """Test that proxies are passed down correctly."""

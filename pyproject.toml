@@ -44,3 +44,8 @@ Issues = "https://github.com/Rouast-Labs/vitallens-python/issues"
 packages = ["vitallens"]
 
 [tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: calls the real VitalLens API (needs VITALLENS_DEV_API_KEY); deselect with -m \"not integration\"",
+]
