@@ -37,6 +37,17 @@ API_RESOLVE_URL = "https://api.rouast.com/vitallens-v3/resolve-model"
 if 'API_RESOLVE_URL' in os.environ:
   API_RESOLVE_URL = os.getenv('API_RESOLVE_URL')
 
+# Request timeouts in seconds, as (connect, read). Without a timeout, a stalled connection blocks
+# forever. Note that requests sends the request body within the *connect* timeout, so for uploads
+# the first number is the time budget for sending the whole body, not just for connecting:
+# /file uploads video chunks of about 6 MB and the API may take a while to process them: 300 s
+# still lets an uplink of ~0.2 Mbit/s finish, so customers on slow mobile links are not cut off.
+# A /stream request carries ~100 KB, and one that takes longer than this is of no use any more
+# (newer frames queue behind it).
+API_RESOLVE_TIMEOUT = (10, 30)
+API_STREAM_TIMEOUT = (10, 10)
+API_FILE_TIMEOUT = (300, 300)
+
 # For local development against dev endpoints, create a `.env` file in the root
 # of the project and set the variables, for example:
 # API_FILE_URL="https://api-dev.rouast.com/vitallens-dev/file"
