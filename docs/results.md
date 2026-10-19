@@ -89,3 +89,16 @@ You might notice that not all keys (like `hrv_sdnn`) are present in every result
 
 > **Note:** HRV vitals are only available on `vitallens` version 2.0 or greater.
 
+## Getting Accurate Results
+
+Estimates are only as good as the video they come from. For the best accuracy and confidence:
+
+- **Light the face well, with steady light.** Avoid flickering lights, changing screen colors and strong backlight.
+- **Keep the subject within 0.5 m of the camera** and facing it, with the whole face in the frame (add the upper chest for respiratory rate).
+- **Keep the subject and the camera still.**
+- **Avoid heavy video compression.** It removes the subtle color changes the estimation relies on.
+
+See the [Accuracy & Guidelines](https://docs.rouast.com/guides/accuracy/) page for the details.
+
+Every value comes with a `confidence` between 0 and 1. As a guide, the VitalLens apps show heart rate and respiratory rate from a confidence of 0.8, and show HRV only when it and the heart rate both reach 0.8. Consider applying a similar rule: an HRV value next to a heart rate with low confidence is not reliable.
+

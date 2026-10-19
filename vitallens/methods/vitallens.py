@@ -36,6 +36,7 @@ import vitallens_core as vc
 
 from vitallens.constants import API_MAX_FRAMES, API_OVERLAP
 from vitallens.constants import API_FILE_URL, API_STREAM_URL, API_RESOLVE_URL
+from vitallens.constants import API_RESOLVE_TIMEOUT, API_STREAM_TIMEOUT, API_FILE_TIMEOUT
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows
@@ -62,7 +63,7 @@ def _resolve_model_config(
   if model_name != "vitallens":
     params['model'] = model_name
   try:
-    response = requests.get(API_RESOLVE_URL, headers=headers, params=params, proxies=proxies)
+    response = requests.get(API_RESOLVE_URL, headers=headers, params=params, proxies=proxies, timeout=API_RESOLVE_TIMEOUT)
     response.raise_for_status()
     data = response.json()
     config_dict = data['config']
@@ -75,6 +76,8 @@ def _resolve_model_config(
       roi_method=config_dict.get('roi_method', 'upper_body_cropped'),
       return_waveforms=['ppg_waveform', 'respiratory_waveform']
     )
+  except requests.exceptions.Timeout as e:
+    raise VitalLensAPIError("The request to resolve the model config timed out. Please check your connection and try again.") from e
   except requests.exceptions.HTTPError as e:
     error_msg = f"Failed to resolve model config: Status {e.response.status_code}"
     try:
@@ -255,7 +258,10 @@ class VitalLensRPPGMethod(RPPGMethod):
     compressed_data = gzip.compress(raw_rgb_bytes)
 
     # Post the binary payload
-    response = self.http_session.post(API_STREAM_URL, headers=headers, data=compressed_data, proxies=self.proxies)
+    try:
+      response = self.http_session.post(API_STREAM_URL, headers=headers, data=compressed_data, proxies=self.proxies, timeout=API_STREAM_TIMEOUT)
+    except requests.exceptions.Timeout as e:
+      raise VitalLensAPIError("The request to the VitalLens API timed out. The connection may be too slow for streaming.") from e
 
     if response.status_code != 200:
       response_body = response.json()
@@ -357,7 +363,10 @@ class VitalLensRPPGMethod(RPPGMethod):
     if self.requested_model_name:
       payload['model'] = self.requested_model_name
     # Ask API to process video
-    response = self.http_session.post(API_FILE_URL, headers=headers, json=payload, proxies=self.proxies)
+    try:
+      response = self.http_session.post(API_FILE_URL, headers=headers, json=payload, proxies=self.proxies, timeout=API_FILE_TIMEOUT)
+    except requests.exceptions.Timeout as e:
+      raise VitalLensAPIError("The request to the VitalLens API timed out. Please check your connection and try again.") from e
     response_body = json.loads(response.text)
     # Check if call was successful
     if response.status_code != 200:

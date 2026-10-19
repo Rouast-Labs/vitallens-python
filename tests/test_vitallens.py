@@ -10,7 +10,7 @@ import vitallens_core as vc
 import sys
 sys.path.append('../vitallens-python')
 
-from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_FILE_URL, API_RESOLVE_URL
+from vitallens.constants import API_MAX_FRAMES, API_MIN_FRAMES, API_FILE_URL, API_RESOLVE_URL, API_RESOLVE_TIMEOUT, API_STREAM_TIMEOUT, API_FILE_TIMEOUT
 from vitallens.methods.vitallens import VitalLensRPPGMethod, _resolve_model_config
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIError, VitalLensAPIQuotaExceededError
 
@@ -379,3 +379,31 @@ def test_proxy_and_auth_offloading(mock_get, mock_post, request):
   args, kwargs = mock_post.call_args
   assert kwargs['proxies'] == proxies
   assert 'x-api-key' not in kwargs['headers']
+
+# Requests need a timeout: without one, a stalled connection blocks forever.
+
+@patch('requests.get', side_effect=requests.exceptions.Timeout)
+def test_resolve_model_config_timeout(mock_get):
+  with pytest.raises(VitalLensAPIError, match="timed out"):
+    _resolve_model_config(api_key="key", model_name="vitallens")
+  assert mock_get.call_args.kwargs['timeout'] == API_RESOLVE_TIMEOUT
+
+@patch('requests.Session.post', side_effect=requests.exceptions.Timeout)
+def test_VitalLensRPPGMethod_stream_timeout(mock_post, mock_resolve_config):
+  method = VitalLensRPPGMethod(api_key="key", requested_model_name="vitallens")
+  frames = np.random.randint(0, 255, (16, 40, 40, 3), dtype=np.uint8)
+  with pytest.raises(VitalLensAPIError, match="timed out"):
+    method.infer_stream(frames=frames, fps=30.0, state=None)
+  assert mock_post.call_args.kwargs['timeout'] == API_STREAM_TIMEOUT
+
+@patch('requests.Session.post', side_effect=requests.exceptions.Timeout)
+def test_VitalLensRPPGMethod_file_timeout(mock_post, mock_resolve_config):
+  method = VitalLensRPPGMethod(api_key="key", requested_model_name="vitallens")
+  n = 32
+  frames = np.random.randint(0, 255, (n, 40, 40, 3), dtype=np.uint8)
+  faces = np.tile(np.array([[10, 10, 90, 90]], dtype=np.int64), (n, 1))
+  with pytest.raises(VitalLensAPIError, match="timed out"):
+    method.process_api_batch(
+      batch=1, n_batches=1, inputs=frames, inputs_shape=(n, 100, 100, 3),
+      faces=faces, fps_target=30.0, fps=30.0, global_parse=True)
+  assert mock_post.call_args.kwargs['timeout'] == API_FILE_TIMEOUT
