@@ -30,7 +30,6 @@ from prpy.numpy.utils import enough_memory_for_ndarray
 import json
 import logging
 import requests
-import os
 from typing import Union, Tuple
 import vitallens_core as vc
 
@@ -40,7 +39,7 @@ from vitallens.constants import API_RESOLVE_TIMEOUT, API_STREAM_TIMEOUT, API_FIL
 from vitallens.errors import VitalLensAPIKeyError, VitalLensAPIQuotaExceededError, VitalLensAPIError
 from vitallens.methods.rppg_method import RPPGMethod
 from vitallens.signal import reassemble_from_windows
-from vitallens.utils import check_faces_in_roi
+from vitallens.utils import check_faces_in_roi, get_api_origin
 
 def _resolve_model_config(
     api_key: str,
@@ -245,7 +244,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     }
     if self.api_key:
       headers["x-api-key"] = self.api_key
-    origin = os.getenv('VITALLENS_API_ORIGIN', 'vitallens-python')
+    origin = get_api_origin()
     headers["X-Origin"] = origin
     if self.requested_model_name:
       headers["X-Model"] = self.requested_model_name
@@ -358,7 +357,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     headers = {}
     if self.api_key:
       headers["x-api-key"] = self.api_key
-    origin = os.getenv('VITALLENS_API_ORIGIN', 'vitallens-python')
+    origin = get_api_origin()
     payload = {"video": base64.b64encode(frames_ds.tobytes()).decode('utf-8'), "origin": origin}
     if self.requested_model_name:
       payload['model'] = self.requested_model_name
