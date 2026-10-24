@@ -18,11 +18,29 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import importlib.metadata as importlib_metadata
 import logging
 import numpy as np
 import os
+import re
 from typing import Union
 import urllib.request
+
+def get_api_origin() -> str:
+  """Get the origin label sent to the API: `vitallens-python_<version>`.
+
+  The version lets us see which client versions are in use. `VITALLENS_API_ORIGIN` overrides the label
+  and is sent as is (the API treats `test` specially). Without an installed version, e.g. when run from
+  a source checkout, only `vitallens-python` is sent.
+  """
+  override = os.getenv('VITALLENS_API_ORIGIN')
+  if override:
+    return override
+  try:
+    version = re.sub(r'[^A-Za-z0-9._+-]', '', importlib_metadata.version('vitallens'))[:40]
+  except Exception:
+    return 'vitallens-python'
+  return f'vitallens-python_{version}' if version else 'vitallens-python'
 
 def download_file(url: str, dest: str):
   """Download a file if necessary.

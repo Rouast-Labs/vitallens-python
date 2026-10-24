@@ -140,3 +140,31 @@ def test_check_faces_in_roi(scenario):
   expected = scenario[3]
   actual = check_faces_in_roi(faces=faces, roi=roi, percentage_required_inside_roi=percentage_required_inside_roi)
   assert expected == actual
+
+def test_get_api_origin_includes_version(monkeypatch):
+  from unittest import mock
+  from vitallens.utils import get_api_origin
+  monkeypatch.delenv('VITALLENS_API_ORIGIN', raising=False)
+  with mock.patch('vitallens.utils.importlib_metadata.version', return_value='0.6.2'):
+    assert get_api_origin() == 'vitallens-python_0.6.2'
+
+def test_get_api_origin_env_override_is_used_verbatim(monkeypatch):
+  from vitallens.utils import get_api_origin
+  monkeypatch.setenv('VITALLENS_API_ORIGIN', 'test')
+  assert get_api_origin() == 'test'
+
+def test_get_api_origin_without_installed_version(monkeypatch):
+  from unittest import mock
+  from vitallens.utils import get_api_origin
+  monkeypatch.delenv('VITALLENS_API_ORIGIN', raising=False)
+  with mock.patch('vitallens.utils.importlib_metadata.version', side_effect=Exception('not installed')):
+    assert get_api_origin() == 'vitallens-python'
+
+def test_get_api_origin_strips_characters_the_api_rejects(monkeypatch):
+  from unittest import mock
+  from vitallens.utils import get_api_origin
+  monkeypatch.delenv('VITALLENS_API_ORIGIN', raising=False)
+  with mock.patch('vitallens.utils.importlib_metadata.version', return_value='0.6.2.dev3+g1234abc.d2026 10/24'):
+    origin = get_api_origin()
+  assert origin == 'vitallens-python_0.6.2.dev3+g1234abc.d20261024'
+  assert len(origin) <= 64
