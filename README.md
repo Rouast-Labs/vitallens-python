@@ -95,7 +95,7 @@ For full API reference, advanced configuration, proxy usage, and result schemas,
 <!-- mkdocs-bottom-start -->
 ## Troubleshooting
 
-- **Prerequisites:** Requires `python>=3.10` and `ffmpeg` installed and on your `$PATH`.
+- **Prerequisites:** Requires `python>=3.11` and `ffmpeg` installed and on your `$PATH`.
 - **Windows:** [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) are required.
 - **ONNX Runtime:** If you encounter installation issues with `onnxruntime`, try installing it via conda first: `conda install -c conda-forge onnxruntime`.
 
