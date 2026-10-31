@@ -69,7 +69,7 @@ class VitalLens:
       api_key: Usage key for the VitalLens API (required for vitallens methods, unless using proxy)
       proxies: Dictionary mapping protocol to the URL of the proxy.
       detect_faces: `True` if faces need to be detected, otherwise `False`.
-      estimate_rolling_vitals: Set `True` to compute rolling vitals (e.g., `rolling_heart_rate`).
+      estimate_rolling_vitals: Set `True` to also estimate each vital over time (under `rolling_vitals`).
       fdet_max_faces: The maximum number of faces to detect (if necessary).
       fdet_fs: Frequency [Hz] at which faces should be scanned. Detections are
         linearly interpolated for remaining frames.

@@ -83,7 +83,7 @@ vl = VitalLens(method="vitallens", api_key="YOUR_API_KEY")
 
 with vl.stream() as session:
     # In your capture loop (e.g., OpenCV)
-    session.push(frame, timestamp=time.time())
+    session.push(frame, timestamp=time.monotonic())
     results = session.get_result(block=False)
 ```
 <!-- mkdocs-end -->

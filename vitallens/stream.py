@@ -258,7 +258,8 @@ class StreamSession:
 
     Args:
       frame: The input video frame of shape (h, w, 3) in RGB format.
-      timestamp: The absolute timestamp of the frame in seconds.
+      timestamp: The capture time of the frame in seconds, increasing (e.g. time.monotonic()).
+        If the camera API does not provide a capture time, take it right after reading the frame.
       face: Optional pre-detected face box [x0, y0, x1, y1].
     """
     if not self.running: return
