@@ -55,7 +55,7 @@ def main():
   resp_conf = deque(maxlen=150)
   vital_conf_thresh = 0.8
   hrv_conf_thresh = 0.7
-  start_time = time.time()
+  start_time = time.monotonic()
 
   ppg_meta = vc.get_vital_info("ppg_waveform")
   hr_meta = vc.get_vital_info("heart_rate")
@@ -70,7 +70,7 @@ def main():
       if not ret:
         break
 
-      timestamp = time.time() - start_time
+      timestamp = time.monotonic() - start_time
       rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
       session.push(rgb_frame, timestamp)
