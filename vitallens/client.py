@@ -271,7 +271,7 @@ class VitalLens:
     Returns:
       session: A `StreamSession` context manager. The session object provides:
         * `push(frame, timestamp, face=None)`: Ingests a new RGB frame. 
-          `timestamp` should be in seconds (e.g., `time.time()`).
+          `timestamp` is the capture time in seconds (e.g., `time.monotonic()`).
         * `get_result(block=False, timeout=None)`: Pulls the latest analysis 
           results from the queue.
         * `current_face`: The most recently detected face coordinates.
