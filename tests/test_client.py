@@ -71,8 +71,8 @@ def test_VitalLens_API(request):
   np.testing.assert_allclose(result[0]['vitals']['respiratory_rate']['confidence'], 1.0, atol=0.1)
   supports_hrv = result[0].get('model_used', '') == 'vitallens-2.0'
   if supports_hrv:
-    np.testing.assert_allclose(result[0]['vitals']['hrv_sdnn']['value'], 40, atol=20)
-    np.testing.assert_allclose(result[0]['vitals']['hrv_rmssd']['value'], 30, atol=20)
+    np.testing.assert_allclose(result[0]['vitals']['hrv_sdnn']['value'], 60, atol=10)
+    np.testing.assert_allclose(result[0]['vitals']['hrv_rmssd']['value'], 57, atol=10)
   assert not os.path.exists("test.json")
 
 @pytest.mark.integration
