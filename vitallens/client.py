@@ -167,7 +167,9 @@ class VitalLens:
               },
               <other waveforms...>
             },
-            'message': <Message about estimates>
+            'message': <Message about estimates>,
+            'model_used': 'vitallens-2.0',
+            'core_version': '0.4.2'
           },
           { 
             <same structure for face 2 if present>
@@ -234,6 +236,8 @@ class VitalLens:
             for k, v in session_result.rolling_vitals.items()
         } if session_result.rolling_vitals else {},
         'message': session_result.message,
+        **({'model_used': self.rppg.model_used} if getattr(self.rppg, 'model_used', None) else {}),
+        'core_version': vc.core_version(),
         'fps': session_result.fps,
         'n': len(session_result.timestamp),
         'time': session_result.timestamp
@@ -271,7 +275,7 @@ class VitalLens:
     Returns:
       session: A `StreamSession` context manager. The session object provides:
         * `push(frame, timestamp, face=None)`: Ingests a new RGB frame. 
-          `timestamp` should be in seconds (e.g., `time.time()`).
+          `timestamp` is the capture time in seconds (e.g., `time.monotonic()`).
         * `get_result(block=False, timeout=None)`: Pulls the latest analysis 
           results from the queue.
         * `current_face`: The most recently detected face coordinates.

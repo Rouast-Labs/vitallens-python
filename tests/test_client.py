@@ -8,6 +8,7 @@ from unittest.mock import patch
 import sys
 sys.path.append('../vitallens-python')
 
+import vitallens_core
 from vitallens.client import VitalLens, Method
 
 @pytest.mark.parametrize("method_arg", [Method.G, "chrom", "pos"])
@@ -30,6 +31,8 @@ def test_VitalLens(request, method_arg, detect_faces, file, export):
   assert np.asarray(result[0]['waveforms']['ppg_waveform']['confidence']).shape == (630,)
   np.testing.assert_allclose(result[0]['vitals']['heart_rate']['value'], 60, atol=10)
   assert result[0]['vitals']['heart_rate']['confidence'] == 1.0
+  assert result[0]['core_version'] == vitallens_core.core_version()
+  assert 'model_used' not in result[0]
   if export:
     test_json_path = os.path.join("test.json")
     assert os.path.exists(test_json_path)
@@ -62,14 +65,15 @@ def test_VitalLens_API(request):
   assert np.asarray(result[0]['waveforms']['respiratory_waveform']['confidence']).shape == (630,)
   assert 'hrv_sdnn' in result[0]['vitals']
   assert 'hrv_rmssd' in result[0]['vitals']
-  np.testing.assert_allclose(result[0]['vitals']['heart_rate']['value'], 60, atol=0.5)
+  # HR and HRV reference values from the contact PPG in examples/sample_vitals_2.csv
+  np.testing.assert_allclose(result[0]['vitals']['heart_rate']['value'], 60.4, atol=0.5)
   np.testing.assert_allclose(result[0]['vitals']['heart_rate']['confidence'], 1.0, atol=0.1)
   np.testing.assert_allclose(result[0]['vitals']['respiratory_rate']['value'], 13, atol=1.0)
   np.testing.assert_allclose(result[0]['vitals']['respiratory_rate']['confidence'], 1.0, atol=0.1)
   supports_hrv = result[0].get('model_used', '') == 'vitallens-2.0'
   if supports_hrv:
-    np.testing.assert_allclose(result[0]['vitals']['hrv_sdnn']['value'], 40, atol=20)
-    np.testing.assert_allclose(result[0]['vitals']['hrv_rmssd']['value'], 30, atol=20)
+    np.testing.assert_allclose(result[0]['vitals']['hrv_sdnn']['value'], 62, atol=10)
+    np.testing.assert_allclose(result[0]['vitals']['hrv_rmssd']['value'], 54, atol=10)
   assert not os.path.exists("test.json")
 
 @pytest.mark.integration

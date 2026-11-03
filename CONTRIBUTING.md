@@ -67,12 +67,6 @@ python -m build
 
 The artifacts will be generated in the `dist/` directory.
 
-Since this is a Python project using `setuptools_scm`, versioning is handled automatically based on git tags. I've adapted the workflow from your JS library to Python conventions while maintaining the same straightforward structure.
-
-Add this section to the end of your `CONTRIBUTING.md`:
-
----
-
 ## Releases
 
 Releases are automated via GitHub Actions and triggered by pushing git tags. The project uses `setuptools_scm`, so the version is derived directly from the tag name.

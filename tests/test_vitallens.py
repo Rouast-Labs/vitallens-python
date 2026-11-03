@@ -152,6 +152,7 @@ def test_VitalLensRPPGMethod_file_mock(mock_post, mock_resolve_config, request, 
   assert data['respiratory_waveform'].shape == (test_video_ndarray.shape[0],)
   assert conf['respiratory_waveform'].shape == (test_video_ndarray.shape[0],)
   assert live.shape == (test_video_ndarray.shape[0],)
+  assert method.model_used == requested_model
 
 @pytest.mark.parametrize("override_fps_target", [None, 15, 10])
 @pytest.mark.parametrize("long", [True])
