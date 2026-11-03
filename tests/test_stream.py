@@ -75,3 +75,4 @@ def test_stream_session():
     assert 'vitals' in res[0]
     assert 'waveforms' in res[0]
     assert 'ppg_waveform' in res[0]['waveforms']
+    assert res[0]['core_version'] == vc.core_version()

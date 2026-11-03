@@ -8,6 +8,7 @@ from unittest.mock import patch
 import sys
 sys.path.append('../vitallens-python')
 
+import vitallens_core
 from vitallens.client import VitalLens, Method
 
 @pytest.mark.parametrize("method_arg", [Method.G, "chrom", "pos"])
@@ -30,6 +31,8 @@ def test_VitalLens(request, method_arg, detect_faces, file, export):
   assert np.asarray(result[0]['waveforms']['ppg_waveform']['confidence']).shape == (630,)
   np.testing.assert_allclose(result[0]['vitals']['heart_rate']['value'], 60, atol=10)
   assert result[0]['vitals']['heart_rate']['confidence'] == 1.0
+  assert result[0]['core_version'] == vitallens_core.core_version()
+  assert 'model_used' not in result[0]
   if export:
     test_json_path = os.path.join("test.json")
     assert os.path.exists(test_json_path)

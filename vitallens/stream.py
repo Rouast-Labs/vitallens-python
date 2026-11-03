@@ -399,6 +399,8 @@ class StreamSession:
       'vitals': {},
       'waveforms': {},
       'message': session_result.message,
+      **({'model_used': self.rppg.model_used} if getattr(self.rppg, 'model_used', None) else {}),
+      'core_version': vc.core_version(),
       'fps': session_result.fps,
       'n': len(session_result.timestamp),
       'time': session_result.timestamp

@@ -115,6 +115,7 @@ class VitalLensRPPGMethod(RPPGMethod):
     self.session_config = _resolve_model_config(api_key=api_key, model_name=requested_model_name, proxies=proxies)
     self.parse_config(self.session_config)
     self.resolved_model = self.session_config.model_name
+    self.model_used = None
     self.requested_model_name = requested_model_name if requested_model_name != "vitallens" else None
     self.http_session = requests.Session()
 
@@ -270,6 +271,7 @@ class VitalLensRPPGMethod(RPPGMethod):
       else: raise VitalLensAPIError(f"API Error: {response_body.get('message')}")
 
     response_body = response.json()
+    self.model_used = response_body.get('model_used', self.model_used)
 
     api_waveforms = response_body.get("waveforms", {})
     sig_dict, conf_dict = {}, {}
@@ -378,6 +380,7 @@ class VitalLensRPPGMethod(RPPGMethod):
         raise VitalLensAPIError(f"API Error: {response_body['message']}")
       else:
         raise Exception(f"Error {response.status_code}: {response_body['message']}")
+    self.model_used = response_body.get('model_used', self.model_used)
     # Dynamic dict parsing
     api_waveforms = response_body.get("waveforms", {})
     sig_ds = {}

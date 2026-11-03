@@ -14,7 +14,7 @@ hr = results[0]['vitals']['heart_rate']['value']
 
 Waveform data, confidences and timestamps are returned as lists; scalar values are Python floats.
 
-Besides `face`, `vitals`, `waveforms` and `message`, each result contains:
+Besides `face`, `vitals`, `waveforms`, `message`, `model_used` (VitalLens API only) and `core_version`, each result contains:
 
 | Key | Contents |
 | --- | --- |
