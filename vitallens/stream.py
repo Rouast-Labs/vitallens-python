@@ -217,7 +217,8 @@ class BufferManager:
 
 class StreamSession:
   """Context manager handling background inference and buffer synchronization for live streams."""
-  def __init__(self, rppg_method, face_detector=None, fdet_fs=1.0, on_result: Optional[Callable] = None):
+  def __init__(self, rppg_method, face_detector=None, fdet_fs=1.0, on_result: Optional[Callable] = None,
+               face_hold_seconds: Optional[float] = None):
     """Initialize the streaming session and start the background inference thread.
 
     Args:
@@ -225,6 +226,8 @@ class StreamSession:
       face_detector: Optional instance of FaceDetector for automatic tracking.
       fdet_fs: Frequency [Hz] at which to run automatic face detection.
       on_result: Optional callback for asynchronous result handling.
+      face_hold_seconds: How long to keep the last face while face detection finds none.
+        Defaults to the vitallens-core default.
     """
     self.rppg = rppg_method
     self.face_detector = face_detector
@@ -237,6 +240,7 @@ class StreamSession:
     self.last_processed_time = -1.0
     self.current_face = None
     self.current_roi_rust = None
+    self.face_hold = vc.FaceHold(face_hold_seconds)
     self.running = True
     self.thread = threading.Thread(target=self._inference_loop, daemon=True)
     self.thread.start()
@@ -272,9 +276,16 @@ class StreamSession:
       self.current_face = face
     elif self.face_detector and (timestamp - self.last_fdet_time) >= (1.0 / self.fdet_fs):
       faces_rel, _ = self.face_detector(inputs=frame[np.newaxis], n_frames=1, fps=30.0)
+      detected = None
       if len(faces_rel) > 0 and len(faces_rel[0]) > 0:
         h, w = frame.shape[:2]
         self.current_face = (faces_rel[0][0] * [w, h, w, h]).astype(np.int64)
+        x0, y0, x1, y1 = (float(v) for v in self.current_face)
+        detected = vc.Rect(x=x0, y=y0, width=x1 - x0, height=y1 - y0)
+      # A miss keeps the last face until none was found for the hold time
+      if self.face_hold.update(detected, timestamp) is None:
+        self.current_face = None
+        self.current_roi_rust = None
       self.last_fdet_time = timestamp
     if self.current_face is None:
       return

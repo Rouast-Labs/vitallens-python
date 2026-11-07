@@ -76,3 +76,38 @@ def test_stream_session():
     assert 'waveforms' in res[0]
     assert 'ppg_waveform' in res[0]['waveforms']
     assert res[0]['core_version'] == vc.core_version()
+class SequenceFaceDetector:
+  """Returns a face for the first `n_found` calls, then none."""
+  def __init__(self, n_found):
+    self.n_found = n_found
+    self.calls = 0
+
+  def __call__(self, inputs, n_frames, fps):
+    self.calls += 1
+    if self.calls <= self.n_found:
+      return np.array([[[0.2, 0.2, 0.4, 0.4]]]), None
+    return np.zeros((1, 0, 4)), None
+
+def test_stream_session_keeps_face_through_short_miss():
+  rppg = DummyStreamRPPG()
+  detector = SequenceFaceDetector(n_found=1)
+  with StreamSession(rppg_method=rppg, face_detector=detector, fdet_fs=2.0, face_hold_seconds=1.0) as session:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    session.push(frame, timestamp=0.0)
+    assert session.current_face is not None
+    session.push(frame, timestamp=0.5)
+    assert detector.calls == 2
+    assert session.current_face is not None
+    assert session.current_roi_rust is not None
+
+def test_stream_session_drops_face_after_hold_time():
+  rppg = DummyStreamRPPG()
+  detector = SequenceFaceDetector(n_found=1)
+  with StreamSession(rppg_method=rppg, face_detector=detector, fdet_fs=2.0, face_hold_seconds=1.0) as session:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    for t in (0.0, 0.5, 1.0):
+      session.push(frame, timestamp=t)
+    assert session.current_face is not None
+    session.push(frame, timestamp=1.5)
+    assert session.current_face is None
+    assert session.current_roi_rust is None
